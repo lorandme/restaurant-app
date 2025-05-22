@@ -86,21 +86,33 @@ namespace restaurant_app.Models.DataAccessLayer
             try
             {
                 // Add debug logging
-                Console.WriteLine("Fetching menus from database...");
+                Console.WriteLine("Fetching menus from database using stored procedure...");
                 var menus = await MenusWithProducts
                     .FromSqlRaw("EXEC GetAvailableMenus")
                     .ToListAsync();
 
-                Console.WriteLine($"Found {menus.Count} menu items");
+                Console.WriteLine($"Found {menus.Count} menu items from stored procedure");
+
+                // If no menus are returned or some other issue, try direct SQL
+                if (menus == null || menus.Count == 0)
+                {
+                    Console.WriteLine("No menus from stored procedure, trying direct SQL...");
+                    menus = await GetMenusDirectSqlAsync();
+                }
+
                 return menus;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error fetching menus: {ex.Message}");
                 Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                return new List<MenuWithProducts>();
+
+                // Try direct SQL on exception
+                Console.WriteLine("Exception occurred, trying direct SQL as fallback...");
+                return await GetMenusDirectSqlAsync();
             }
         }
+
 
         /// <summary>
         /// Gets products with stock below the specified threshold using the GetLowStockProducts stored procedure
@@ -225,7 +237,7 @@ namespace restaurant_app.Models.DataAccessLayer
         public async Task<List<Order>> GetActiveOrdersAsync()
         {
             return await Orders
-                .FromSqlRaw("SELECT * FROM Orders WHERE Status NOT IN ('Delivered', 'Cancelled') ORDER BY OrderDate DESC")
+                .FromSqlRaw("SELECT * FROM Orders WHERE Status NOT IN ('Delivered', 'Cancelled')")
                 .Include(o => o.OrderDetails)
                 .ToListAsync();
         }
@@ -236,7 +248,7 @@ namespace restaurant_app.Models.DataAccessLayer
         public async Task<List<Order>> GetAllOrdersAsync()
         {
             return await Orders
-                .FromSqlRaw("SELECT * FROM Orders ORDER BY OrderDate DESC")
+                .FromSqlRaw("SELECT * FROM Orders")
                 .Include(o => o.OrderDetails)
                 .ToListAsync();
         }
@@ -360,7 +372,229 @@ namespace restaurant_app.Models.DataAccessLayer
             }
         }
 
+        /// <summary>
+        /// Adds a product to a menu
+        /// </summary>
+        /// <summary>
+        /// Adds a product to a menu
+        /// </summary>
+        public async Task<bool> AddProductToMenuAsync(int menuId, int productId, decimal quantity, string unit)
+        {
+            try
+            {
+                Console.WriteLine($"DEBUG: Adding product {productId} to menu {menuId} with quantity {quantity} {unit}");
 
+                // First verify that both menu and product exist
+                var menuExists = await Menus.AnyAsync(m => m.MenuId == menuId);
+                var productExists = await Products.AnyAsync(p => p.ProductId == productId);
+
+                if (!menuExists)
+                {
+                    Console.WriteLine($"ERROR: Menu with ID {menuId} does not exist in the database!");
+                    return false;
+                }
+
+                if (!productExists)
+                {
+                    Console.WriteLine($"ERROR: Product with ID {productId} does not exist in the database!");
+                    return false;
+                }
+
+                var parameters = new[]
+                {
+            new SqlParameter("@MenuID", menuId),
+            new SqlParameter("@ProductID", productId),
+            new SqlParameter("@ProductQuantity", quantity),
+            new SqlParameter("@ProductUnit", unit)
+        };
+
+                // First check if the relationship already exists
+                var existingMenuProduct = await MenuProducts
+                    .FirstOrDefaultAsync(mp => mp.MenuId == menuId && mp.ProductId == productId);
+
+                if (existingMenuProduct != null)
+                {
+                    Console.WriteLine($"DEBUG: Updating existing relationship for menu {menuId} and product {productId}");
+                    // Update existing relationship
+                    await Database.ExecuteSqlRawAsync(
+                        "UPDATE MenuProducts SET ProductQuantity = @ProductQuantity, ProductUnit = @ProductUnit " +
+                        "WHERE MenuId = @MenuID AND ProductId = @ProductID",
+                        parameters);
+                }
+                else
+                {
+                    Console.WriteLine($"DEBUG: Creating new relationship for menu {menuId} and product {productId}");
+                    // Create new relationship
+                    await Database.ExecuteSqlRawAsync(
+                        "INSERT INTO MenuProducts (MenuId, ProductId, ProductQuantity, ProductUnit) " +
+                        "VALUES (@MenuID, @ProductID, @ProductQuantity, @ProductUnit)",
+                        parameters);
+
+                    // Verify insertion was successful
+                    var inserted = await MenuProducts
+                        .AnyAsync(mp => mp.MenuId == menuId && mp.ProductId == productId);
+
+                    if (!inserted)
+                    {
+                        Console.WriteLine($"ERROR: Failed to insert relationship for menu {menuId} and product {productId}");
+                        return false;
+                    }
+                }
+
+                Console.WriteLine($"DEBUG: Successfully added product {productId} to menu {menuId}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR adding product to menu: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+
+                // Log more specific SQL Server error information if available
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                }
+
+                return false;
+            }
+        }
+
+
+
+        /// <summary>
+        /// Removes a product from a menu
+        /// </summary>
+        public async Task<bool> RemoveProductFromMenuAsync(int menuId, int productId)
+        {
+            try
+            {
+                var parameters = new[]
+                {
+            new SqlParameter("@MenuID", menuId),
+            new SqlParameter("@ProductID", productId)
+        };
+
+                await Database.ExecuteSqlRawAsync(
+                    "DELETE FROM MenuProducts WHERE MenuId = @MenuID AND ProductId = @ProductID",
+                    parameters);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error removing product from menu: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Gets all available menus with their products using direct SQL instead of stored procedure
+        /// </summary>
+        /// <summary>
+/// Gets all available menus with their products using direct SQL instead of stored procedure
+/// </summary>
+public async Task<List<MenuWithProducts>> GetMenusDirectSqlAsync()
+{
+    try
+    {
+        Console.WriteLine("Fetching menus using direct SQL...");
+        
+        string sqlQuery = @"
+            SELECT 
+                m.MenuId AS MenuID, 
+                m.Name AS MenuName, 
+                m.Description, 
+                m.CategoryId AS CategoryID, 
+                c.Name AS CategoryName,
+                mp.ProductId AS ProductID, 
+                p.Name AS ProductName, 
+                p.Price AS ProductPrice, 
+                mp.ProductQuantity, 
+                mp.ProductUnit
+            FROM Menus m
+            LEFT JOIN Categories c ON m.CategoryId = c.CategoryId
+            LEFT JOIN MenuProducts mp ON m.MenuId = mp.MenuId
+            LEFT JOIN Products p ON mp.ProductId = p.ProductId
+            WHERE m.IsAvailable = 1 OR m.IsAvailable IS NULL";
+        
+        var menus = await MenusWithProducts
+            .FromSqlRaw(sqlQuery)
+            .ToListAsync();
+        
+        Console.WriteLine($"Direct SQL found {menus.Count} menu items");
+        return menus;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in direct SQL menu query: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        return new List<MenuWithProducts>();
+    }
+}
+
+
+
+        /// <summary>
+        /// Gets all products for a specific menu
+        /// </summary>
+        public async Task<List<MenuProduct>> GetMenuProductsAsync(int menuId)
+        {
+            try
+            {
+                var param = new SqlParameter("@MenuID", menuId);
+
+                return await MenuProducts
+                    .FromSqlRaw("SELECT * FROM MenuProducts WHERE MenuId = @MenuID", param)
+                    .Include(mp => mp.Product)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting menu products: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return new List<MenuProduct>();
+            }
+        }
+
+        /// <summary>
+        /// Gets detailed menu information with associated products using a custom query
+        /// </summary>
+        public async Task<List<MenuWithProducts>> GetMenuWithProductsAsync(int menuId)
+        {
+            try
+            {
+                var param = new SqlParameter("@MenuID", menuId);
+
+                string sqlQuery = @"
+            SELECT 
+                m.MenuId AS MenuID, 
+                m.Name AS MenuName, 
+                m.Description, 
+                m.CategoryId AS CategoryID, 
+                c.Name AS CategoryName,
+                p.ProductId AS ProductID, 
+                p.Name AS ProductName, 
+                p.Price AS ProductPrice, 
+                mp.ProductQuantity, 
+                mp.ProductUnit
+            FROM Menus m
+            JOIN Categories c ON m.CategoryId = c.CategoryId
+            JOIN MenuProducts mp ON m.MenuId = mp.MenuId
+            JOIN Products p ON mp.ProductId = p.ProductId
+            WHERE m.MenuId = @MenuID";
+
+                return await MenusWithProducts
+                    .FromSqlRaw(sqlQuery, param)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting menu with products: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return new List<MenuWithProducts>();
+            }
+        }
 
 
     }

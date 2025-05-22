@@ -134,21 +134,25 @@ namespace restaurant_app.ViewModels
                 IsProcessing = true;
                 StatusMessage = "Procesare comandă...";
 
+                // Make sure config service is initialized
+                await ServiceLocator.Instance.InitializeConfigurationAsync();
+
                 // Create order
                 int orderId = await _orderService.CreateOrderAsync(CartItems.ToList(), DeliveryAddress);
 
                 // Clear cart after successful order
                 CartItems.Clear();
+                // Also clear the temp cart in the OrderService
+                _orderService.InitializeTempCart();
+
                 CalculateTotals();
 
                 StatusMessage = $"Comandă creată cu succes! ID: {orderId}";
-
-                // Navigate to order confirmation or orders list
-                // _navigationService.NavigateTo<OrderConfirmationPage>(orderId);
             }
             catch (Exception ex)
             {
                 StatusMessage = $"Eroare la procesarea comenzii: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"Order error details: {ex}");
             }
             finally
             {

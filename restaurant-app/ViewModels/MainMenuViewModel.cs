@@ -218,6 +218,15 @@ namespace restaurant_app.ViewModels
                     configService,
                     null); // Pass null for NavigationService
 
+                // Load the temporary cart items into the OrderViewModel
+                if (orderService.TempCart != null)
+                {
+                    foreach (var item in orderService.TempCart)
+                    {
+                        orderViewModel.AddToCart(item.ItemId, item.Name, item.IsProduct, item.UnitPrice, item.Quantity);
+                    }
+                }
+
                 // Create the OrderPage and set its DataContext
                 var orderPage = new OrderPage
                 {
@@ -242,6 +251,7 @@ namespace restaurant_app.ViewModels
             }
         }
 
+
         private void ExecuteViewCart()
         {
             if (!IsUserClient)
@@ -263,6 +273,15 @@ namespace restaurant_app.ViewModels
                     authService,
                     configService,
                     null); // Pass null for NavigationService
+
+                // Load the temporary cart items into the OrderViewModel
+                if (orderService.TempCart != null)
+                {
+                    foreach (var item in orderService.TempCart)
+                    {
+                        orderViewModel.AddToCart(item.ItemId, item.Name, item.IsProduct, item.UnitPrice, item.Quantity);
+                    }
+                }
 
                 // Create the OrderPage and set its DataContext
                 var orderPage = new OrderPage
@@ -287,6 +306,7 @@ namespace restaurant_app.ViewModels
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
 
         private void ExecuteAdminDashboard()
         {
@@ -513,10 +533,42 @@ namespace restaurant_app.ViewModels
                 return;
             }
 
-            // Increment cart counter
-            CartItemCount++;
-            StatusMessage = "Produs adăugat în coș";
+            // Check if parameter is a product
+            if (parameter is Models.ProductWithCategoryAndAllergens product)
+            {
+                try
+                {
+                    // Get the OrderService from ServiceLocator
+                    var orderService = ServiceLocator.Instance.OrderService;
+
+                    // Create a temporary cart if it doesn't exist
+                    if (ServiceLocator.Instance.OrderService.TempCart == null)
+                    {
+                        // Initialize an empty cart in the OrderService
+                        ServiceLocator.Instance.OrderService.InitializeTempCart();
+                    }
+
+                    // Add the product to the cart
+                    ServiceLocator.Instance.OrderService.AddToTempCart(
+                        product.ProductID,
+                        product.ProductName,
+                        true, // IsProduct = true
+                        product.Price,
+                        1 // Default quantity is 1
+                    );
+
+                    // Increment cart counter
+                    CartItemCount++;
+                    StatusMessage = $"Produs '{product.ProductName}' adăugat în coș";
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Eroare la adăugarea în coș: {ex.Message}", "Eroare",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
         }
+
 
         private void ExecuteLogin()
         {

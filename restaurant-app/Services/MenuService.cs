@@ -122,9 +122,45 @@ namespace restaurant_app.Services
 
 
         public async Task<List<MenuWithProducts>> GetAllMenusAsync()
-        {
-            return await _context.GetAvailableMenusAsync();
-        }
+{
+    try
+    {
+        Console.WriteLine("MenuService: Getting all menus...");
+        var menus = await _context.GetAvailableMenusAsync();
+        
+        // Group menus by MenuID to consolidate products
+        var groupedMenus = menus
+            .GroupBy(m => m.MenuID)
+            .Select(g => g.First())
+            .ToList();
+        
+        Console.WriteLine($"MenuService: Found {groupedMenus.Count} unique menus");
+        return groupedMenus;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in MenuService.GetAllMenusAsync: {ex.Message}");
+        return new List<MenuWithProducts>();
+    }
+}
+
+// Add a direct method to get all menus from the database without stored procedures
+public async Task<List<Menu>> GetAllBasicMenusAsync()
+{
+    try
+    {
+        Console.WriteLine("MenuService: Getting all basic menus...");
+        return await _context.Menus
+            .Where(m => m.IsAvailable == true)
+            .ToListAsync();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in GetAllBasicMenusAsync: {ex.Message}");
+        return new List<Menu>();
+    }
+}
+
 
         public async Task<List<ProductLowStock>> GetLowStockProductsAsync()
         {
@@ -336,6 +372,94 @@ namespace restaurant_app.Services
             }
         }
 
+        /// <summary>
+        /// Adds a menu and returns the ID of the newly created menu
+        /// </summary>
+        public async Task<int?> AddMenuWithIdAsync(Menu menu)
+        {
+            try
+            {
+                if (menu == null) throw new ArgumentNullException(nameof(menu));
+
+                // Set default values if not provided
+                if (string.IsNullOrEmpty(menu.Name))
+                    throw new ArgumentException("Menu name is required", nameof(menu));
+
+                menu.IsAvailable ??= true;
+
+                _context.Menus.Add(menu);
+                await _context.SaveChangesAsync();
+
+                // Return the generated ID
+                return menu.MenuId;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error adding menu: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Adds a product to a menu using direct EF Core operations
+        /// </summary>
+        public async Task<bool> AddProductToMenuDirectAsync(int menuId, int productId, decimal quantity, string unit)
+        {
+            try
+            {
+                // Check if menu exists
+                var menu = await _context.Menus.FindAsync(menuId);
+                if (menu == null)
+                {
+                    Console.WriteLine($"Menu with ID {menuId} not found");
+                    return false;
+                }
+
+                // Check if product exists
+                var product = await _context.Products.FindAsync(productId);
+                if (product == null)
+                {
+                    Console.WriteLine($"Product with ID {productId} not found");
+                    return false;
+                }
+
+                // Check if relationship already exists
+                var existingMenuProduct = await _context.MenuProducts
+                    .FirstOrDefaultAsync(mp => mp.MenuId == menuId && mp.ProductId == productId);
+
+                if (existingMenuProduct != null)
+                {
+                    // Update existing relationship
+                    existingMenuProduct.ProductQuantity = quantity;
+                    existingMenuProduct.ProductUnit = unit;
+                }
+                else
+                {
+                    // Create new relationship
+                    var menuProduct = new MenuProduct
+                    {
+                        MenuId = menuId,
+                        ProductId = productId,
+                        ProductQuantity = quantity,
+                        ProductUnit = unit
+                    };
+
+                    _context.MenuProducts.Add(menuProduct);
+                }
+
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error adding product to menu directly: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return false;
+            }
+        }
+
+
         public async Task<bool> UpdateMenuAsync(Menu menu)
         {
             try
@@ -399,6 +523,74 @@ namespace restaurant_app.Services
                 return false;
             }
         }
+
+        /// <summary>
+        /// Adds a product to a menu with specified quantity and unit
+        /// </summary>
+        public async Task<bool> AddProductToMenuAsync(int menuId, int productId, decimal quantity, string unit)
+        {
+            try
+            {
+                Console.WriteLine($"MenuService: Adding product {productId} to menu {menuId}");
+                return await _context.AddProductToMenuAsync(menuId, productId, quantity, unit);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in MenuService.AddProductToMenuAsync: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return false;
+            }
+        }
+
+
+        /// <summary>
+        /// Removes a product from a menu
+        /// </summary>
+        public async Task<bool> RemoveProductFromMenuAsync(int menuId, int productId)
+        {
+            try
+            {
+                return await _context.RemoveProductFromMenuAsync(menuId, productId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in MenuService.RemoveProductFromMenuAsync: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Gets all products associated with a specific menu
+        /// </summary>
+        public async Task<List<MenuWithProducts>> GetMenuProductsDetailedAsync(int menuId)
+        {
+            try
+            {
+                return await _context.GetMenuWithProductsAsync(menuId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in MenuService.GetMenuProductsDetailedAsync: {ex.Message}");
+                return new List<MenuWithProducts>();
+            }
+        }
+
+        /// <summary>
+        /// Gets raw MenuProduct entries for a menu
+        /// </summary>
+        public async Task<List<MenuProduct>> GetMenuProductsAsync(int menuId)
+        {
+            try
+            {
+                return await _context.GetMenuProductsAsync(menuId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in MenuService.GetMenuProductsAsync: {ex.Message}");
+                return new List<MenuProduct>();
+            }
+        }
+
 
         // --- CATEGORY METHODS ---
         public async Task<bool> AddCategoryAsync(Category category)

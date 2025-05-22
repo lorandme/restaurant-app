@@ -369,16 +369,20 @@
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <!-- Menus View -->
+                <!-- Update the Menus DataGrid columns -->
                 <DataGrid Grid.Row="1" ItemsSource="{Binding Menus}" SelectedItem="{Binding SelectedMenu}" 
-                          AutoGenerateColumns="False" IsReadOnly="True" Margin="0,5"
-                          Visibility="{Binding IsMenusVisible, Converter={StaticResource BoolToVis}}">
+          AutoGenerateColumns="False" IsReadOnly="True" Margin="0,5"
+          Visibility="{Binding IsMenusVisible, Converter={StaticResource BoolToVis}}">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Nume" Binding="{Binding MenuName}" Width="*"/>
                         <DataGridTextColumn Header="Categorie" Binding="{Binding CategoryName}" Width="*"/>
                         <DataGridTextColumn Header="Descriere" Binding="{Binding Description}" Width="2*"/>
+                        <DataGridTextColumn Header="Produs" Binding="{Binding ProductName}" Width="*"/>
+                        <DataGridTextColumn Header="Cantitate" Binding="{Binding ProductQuantity}" Width="Auto"/>
+                        <DataGridTextColumn Header="Unitate" Binding="{Binding ProductUnit}" Width="Auto"/>
                     </DataGrid.Columns>
                 </DataGrid>
+
 
                 <!-- Allergens View -->
                 <DataGrid Grid.Row="1" ItemsSource="{Binding Allergens}" SelectedItem="{Binding SelectedAllergen}" 

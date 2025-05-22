@@ -341,28 +341,97 @@ namespace restaurant_app.ViewModels
                 IsLoading = true;
                 StatusMessage = "Se încarcă meniurile...";
 
-                var menus = await _menuService.GetAllMenusAsync();
+                // Make sure categories are loaded first to ensure we can display category names
+                if (Categories.Count == 0)
+                    await LoadCategories();
 
-                Application.Current.Dispatcher.Invoke(() =>
+                // Try to get menus with products first
+                var menusWithProducts = await _menuService.GetAllMenusAsync();
+
+                if (menusWithProducts.Count == 0)
                 {
-                    Menus.Clear();
-                    foreach (var menu in menus)
+                    // If that fails, fallback to getting just basic menus
+                    var basicMenus = await _menuService.GetAllBasicMenusAsync();
+                    Console.WriteLine($"Found {basicMenus.Count} basic menus");
+
+                    Application.Current.Dispatcher.Invoke(() =>
                     {
-                        Menus.Add(menu);
-                    }
-                    StatusMessage = "Meniuri încărcate";
-                    IsLoading = false;
-                });
+                        Menus.Clear();
+                        foreach (var menu in basicMenus)
+                        {
+                            // Get category name from our Categories collection instead of using "Unknown"
+                            string categoryName = Categories
+                                .FirstOrDefault(c => c.CategoryId == menu.CategoryId)?.Name ?? "Unknown";
+
+                            // Convert basic menu to MenuWithProducts
+                            Menus.Add(new MenuWithProducts
+                            {
+                                MenuID = menu.MenuId,
+                                MenuName = menu.Name,
+                                Description = menu.Description,
+                                CategoryID = menu.CategoryId,
+                                CategoryName = categoryName // Use the retrieved category name
+                            });
+                        }
+                        StatusMessage = "Meniuri încărcate (mod basic)";
+                        IsLoading = false;
+                    });
+                }
+                else
+                {
+                    Console.WriteLine($"Found {menusWithProducts.Count} menus with products");
+
+                    // Process each menu to ensure it has the right data
+                    var processedMenus = menusWithProducts
+                        .GroupBy(m => m.MenuID)
+                        .Select(g =>
+                        {
+                            var firstMenu = g.First();
+                            // Ensure we have the right category name
+                            if (string.IsNullOrEmpty(firstMenu.CategoryName))
+                            {
+                                firstMenu.CategoryName = Categories
+                                    .FirstOrDefault(c => c.CategoryId == firstMenu.CategoryID)?.Name ?? "Unknown";
+                            }
+
+                            // Create a list of product names for display
+                            var productNames = g.Where(m => m.ProductID > 0 && !string.IsNullOrEmpty(m.ProductName))
+                                               .Select(m => $"{m.ProductName} ({m.ProductQuantity} {m.ProductUnit})")
+                                               .ToList();
+
+                            // You could add these to a Products property of MenuWithProducts if needed
+                            // For now, we could add this to the description for display purposes
+                            if (productNames.Count > 0)
+                            {
+                                firstMenu.Description += "\nProduse: " + string.Join(", ", productNames);
+                            }
+
+                            return firstMenu;
+                        })
+                        .ToList();
+
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        Menus.Clear();
+                        foreach (var menu in processedMenus)
+                        {
+                            Menus.Add(menu);
+                        }
+                        StatusMessage = "Meniuri încărcate";
+                        IsLoading = false;
+                    });
+                }
             }
             catch (Exception ex)
             {
                 Application.Current.Dispatcher.Invoke(() =>
                 {
-                    StatusMessage = $"Eroare: {ex.Message}";
+                    StatusMessage = $"Eroare la încărcarea meniurilor: {ex.Message}";
                     IsLoading = false;
                 });
             }
         }
+
 
         private async Task LoadAllergens()
         {
@@ -988,24 +1057,170 @@ namespace restaurant_app.ViewModels
         // --- Menu CRUD methods ---
         private async void AddMenu()
         {
+            // Basic menu information
             var name = PromptForInput("Introduceți numele meniului:");
             if (string.IsNullOrWhiteSpace(name)) return;
 
             var description = PromptForInput("Introduceți descrierea meniului (opțional):");
 
-            // Check if categories exist
+            // Load categories first 
             if (Categories.Count == 0)
+                await LoadCategories();
+
+            // Show categories to select from
+            string categoryOptions = string.Join(Environment.NewLine,
+                Categories.Select(c => $"{c.CategoryId}: {c.Name}"));
+
+            var categoryIdStr = PromptForInput(
+                $"Selectați ID-ul categoriei:\n{categoryOptions}",
+                "7");
+
+            if (!int.TryParse(categoryIdStr, out int categoryId) ||
+                !Categories.Any(c => c.CategoryId == categoryId))
             {
-                StatusMessage = "Nu există categorii. Creați mai întâi o categorie.";
+                StatusMessage = "Categorie invalidă selectată!";
                 return;
             }
 
-            // Get selected category or default to first category
-            var categoryId = SelectedCategory?.CategoryId ??
-                (Categories.Count > 0 ? Categories[0].CategoryId : 1);
+            try
+            {
+                IsLoading = true;
+                StatusMessage = "Se adaugă meniul...";
 
+                // Create the menu object with proper category
+                var menu = new Menu
+                {
+                    Name = name,
+                    Description = description,
+                    CategoryId = categoryId,
+                    IsAvailable = true
+                };
+
+                // Add menu and get ID directly
+                int? newMenuId = await _menuService.AddMenuWithIdAsync(menu);
+
+                if (!newMenuId.HasValue)
+                {
+                    StatusMessage = "Nu s-a putut adăuga meniul!";
+                    IsLoading = false;
+                    return;
+                }
+
+                // Load products for selection
+                if (Products.Count == 0)
+                    await LoadProducts();
+
+                // Create a simple formatted list of products
+                string productsText = string.Join(Environment.NewLine,
+                    Products.Select(p => $"ID: {p.ProductID}, Nume: {p.ProductName}, Preț: {p.Price}"));
+
+                // Show the menu and prompt for products
+                MessageBox.Show($"Meniul '{name}' a fost creat cu success. Acum vă rugăm să adăugați produse.",
+                    "Meniu creat", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // Get products for this menu with a more visible dialog
+                var productIdsStr = PromptForInput(
+                    $"Produse disponibile:\n{productsText}\n\n" +
+                    "Introduceți ID-urile produselor separate prin virgulă:");
+
+                bool anyProductAdded = false;
+
+                // Process product selections
+                if (!string.IsNullOrWhiteSpace(productIdsStr))
+                {
+                    var productIds = productIdsStr.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(id => id.Trim())
+                        .Where(id => int.TryParse(id, out _))
+                        .Select(id => int.Parse(id))
+                        .ToList();
+
+                    foreach (var productId in productIds)
+                    {
+                        var product = Products.FirstOrDefault(p => p.ProductID == productId);
+                        if (product == null) continue;
+
+                        var quantityStr = PromptForInput(
+                            $"Introduceți cantitatea pentru {product.ProductName}:",
+                            "1");
+
+                        if (!decimal.TryParse(quantityStr, out decimal quantity) || quantity <= 0)
+                        {
+                            MessageBox.Show($"Cantitate invalidă pentru {product.ProductName}. Folosim valoarea implicită 1.",
+                                "Cantitate invalidă", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            quantity = 1;
+                        }
+
+                        var unit = PromptForInput(
+                            $"Introduceți unitatea de măsură pentru {product.ProductName}:",
+                            product.PortionUnit);
+
+                        if (string.IsNullOrWhiteSpace(unit))
+                        {
+                            unit = product.PortionUnit;
+                        }
+
+                        var addResult = await _menuService.AddProductToMenuDirectAsync(newMenuId.Value, productId, quantity, unit);
+
+                        if (addResult)
+                        {
+                            anyProductAdded = true;
+                        }
+                    }
+                }
+
+                // Final status update
+                await LoadMenus();
+                StatusMessage = anyProductAdded
+                    ? "Meniu și produse adăugate cu succes!"
+                    : "Meniu adăugat, dar nu s-au adăugat produse!";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Eroare: {ex.Message}";
+                MessageBox.Show($"Eroare la adăugarea meniului: {ex.Message}", "Eroare", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsLoading = false;
+            }
+        }
+
+
+
+        private async void EditMenu()
+        {
+            if (SelectedMenu == null) return;
+
+            // Basic menu information
+            var name = PromptForInput("Editați numele meniului:", SelectedMenu.MenuName);
+            if (string.IsNullOrWhiteSpace(name)) return;
+
+            var description = PromptForInput("Editați descrierea meniului:",
+                SelectedMenu.Description ?? "");
+
+            // Load categories if needed
+            if (Categories.Count == 0)
+                await LoadCategories();
+
+            // Select category using a simple dialog
+            string categoryOptions = string.Join(Environment.NewLine,
+                Categories.Select(c => $"{c.CategoryId}: {c.Name}"));
+
+            var categoryIdStr = PromptForInput(
+                $"Selectați ID-ul categoriei:\n{categoryOptions}",
+                SelectedMenu.CategoryID.ToString());
+
+            if (!int.TryParse(categoryIdStr, out int categoryId) ||
+                !Categories.Any(c => c.CategoryId == categoryId))
+            {
+                StatusMessage = "Categorie invalidă selectată!";
+                return;
+            }
+
+            // Create updated menu object
             var menu = new Menu
             {
+                MenuId = SelectedMenu.MenuID,
                 Name = name,
                 Description = description,
                 CategoryId = categoryId,
@@ -1015,72 +1230,126 @@ namespace restaurant_app.ViewModels
             try
             {
                 IsLoading = true;
-                var result = await _menuService.AddMenuAsync(menu);
+                StatusMessage = "Se actualizează meniul...";
 
-                if (result)
-                {
-                    await LoadMenus();
-                    StatusMessage = "Meniu adăugat cu succes!";
-                }
-                else
-                {
-                    StatusMessage = "Nu s-a putut adăuga meniul!";
-                }
-            }
-            catch (Exception ex)
-            {
-                StatusMessage = $"Eroare: {ex.Message}";
-            }
-            finally
-            {
-                IsLoading = false;
-            }
-        }
-
-        private async void EditMenu()
-        {
-            if (SelectedMenu == null) return;
-
-            var name = PromptForInput("Editați numele meniului:", SelectedMenu.MenuName);
-            if (string.IsNullOrWhiteSpace(name)) return;
-
-            var description = PromptForInput("Editați descrierea meniului:",
-                SelectedMenu.Description ?? "");
-
-            // Create a new Menu with updated properties
-            var menu = new Menu
-            {
-                MenuId = SelectedMenu.MenuID,
-                Name = name,
-                Description = description,
-                CategoryId = SelectedMenu.CategoryID,
-                IsAvailable = true
-            };
-
-            try
-            {
-                IsLoading = true;
+                // Update the menu information
                 var result = await _menuService.UpdateMenuAsync(menu);
-
-                if (result)
-                {
-                    await LoadMenus();
-                    StatusMessage = "Meniu editat cu succes!";
-                }
-                else
+                if (!result)
                 {
                     StatusMessage = "Nu s-a putut edita meniul!";
+                    IsLoading = false;
+                    return;
                 }
+
+                // Get existing menu products
+                var existingProducts = await _menuService.GetMenuProductsAsync(SelectedMenu.MenuID);
+
+                string existingProductsText = "";
+                if (existingProducts.Any())
+                {
+                    existingProductsText = "Produse existente în meniu:\n" +
+                        string.Join("\n", existingProducts.Select(mp =>
+                            $"ID: {mp.ProductId}, Nume: {mp.Product?.Name ?? "Unknown"}, " +
+                            $"Cantitate: {mp.ProductQuantity} {mp.ProductUnit}"));
+                }
+                else
+                {
+                    existingProductsText = "Nu există produse în acest meniu.";
+                }
+
+                // Load products if needed
+                if (Products.Count == 0)
+                    await LoadProducts();
+
+                // Show available products
+                string productsText = string.Join(Environment.NewLine,
+                    Products.Select(p => $"ID: {p.ProductID}, Nume: {p.ProductName}, Preț: {p.Price}"));
+
+                MessageBox.Show($"Meniul '{name}' a fost actualizat cu success. Acum puteți modifica produsele din meniu.",
+                    "Meniu actualizat", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // Ask which products to keep
+                var removeProductsStr = PromptForInput(
+                    $"{existingProductsText}\n\n" +
+                    "Introduceți ID-urile produselor de ȘTERS din meniu (separate prin virgulă) sau lăsați gol pentru a păstra toate produsele:");
+
+                if (!string.IsNullOrWhiteSpace(removeProductsStr))
+                {
+                    var removeIds = removeProductsStr.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(id => id.Trim())
+                        .Where(id => int.TryParse(id, out _))
+                        .Select(id => int.Parse(id))
+                        .ToList();
+
+                    // Remove products
+                    foreach (var productId in removeIds)
+                    {
+                        if (existingProducts.Any(p => p.ProductId == productId))
+                        {
+                            await _menuService.RemoveProductFromMenuAsync(SelectedMenu.MenuID, productId);
+                        }
+                    }
+                }
+
+                // Ask which products to add
+                var addProductsStr = PromptForInput(
+                    $"Produse disponibile:\n{productsText}\n\n" +
+                    "Introduceți ID-urile produselor de ADĂUGAT în meniu (separate prin virgulă) sau lăsați gol pentru a nu adăuga nimic:");
+
+                if (!string.IsNullOrWhiteSpace(addProductsStr))
+                {
+                    var addIds = addProductsStr.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(id => id.Trim())
+                        .Where(id => int.TryParse(id, out _))
+                        .Select(id => int.Parse(id))
+                        .ToList();
+
+                    // Add or update products
+                    foreach (var productId in addIds)
+                    {
+                        var product = Products.FirstOrDefault(p => p.ProductID == productId);
+                        if (product == null) continue;
+
+                        var existingProduct = existingProducts.FirstOrDefault(p => p.ProductId == productId);
+
+                        var quantityStr = PromptForInput(
+                            $"Introduceți cantitatea pentru {product.ProductName}:",
+                            existingProduct?.ProductQuantity.ToString() ?? "1");
+
+                        if (!decimal.TryParse(quantityStr, out decimal quantity) || quantity <= 0)
+                        {
+                            MessageBox.Show($"Cantitate invalidă pentru {product.ProductName}. Folosim valoarea implicită 1.",
+                                "Cantitate invalidă", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            quantity = 1;
+                        }
+
+                        var unit = PromptForInput(
+                            $"Introduceți unitatea de măsură pentru {product.ProductName}:",
+                            existingProduct?.ProductUnit ?? product.PortionUnit);
+
+                        if (string.IsNullOrWhiteSpace(unit))
+                        {
+                            unit = product.PortionUnit;
+                        }
+
+                        await _menuService.AddProductToMenuDirectAsync(SelectedMenu.MenuID, productId, quantity, unit);
+                    }
+                }
+
+                await LoadMenus();
+                StatusMessage = "Meniu editat cu succes!";
             }
             catch (Exception ex)
             {
                 StatusMessage = $"Eroare: {ex.Message}";
+                MessageBox.Show($"Eroare la editarea meniului: {ex.Message}", "Eroare", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
                 IsLoading = false;
             }
         }
+
 
         private async void DeleteMenu()
         {

@@ -21,9 +21,45 @@ namespace restaurant_app.Services
             _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         }
 
+
+        // Add this to OrderService.cs
+        private List<OrderItem> _tempCart = new List<OrderItem>();
+
+        public List<OrderItem> TempCart => _tempCart;
+
+        public void InitializeTempCart()
+        {
+            _tempCart = new List<OrderItem>();
+        }
+
+        public void AddToTempCart(int itemId, string name, bool isProduct, decimal unitPrice, int quantity = 1)
+        {
+            // Check if item already exists in cart
+            var existingItem = _tempCart.FirstOrDefault(i => i.ItemId == itemId && i.IsProduct == isProduct);
+
+            if (existingItem != null)
+            {
+                existingItem.Quantity += quantity;
+            }
+            else
+            {
+                var newItem = new OrderItem
+                {
+                    ItemId = itemId,
+                    Name = name,
+                    IsProduct = isProduct,
+                    UnitPrice = unitPrice,
+                    Quantity = quantity
+                };
+
+                _tempCart.Add(newItem);
+            }
+        }
+
+
         public async Task<int> CreateOrderAsync(
-            List<OrderItem> items,
-            string deliveryAddress)
+    List<OrderItem> items,
+    string deliveryAddress)
         {
             if (!_authService.IsLoggedIn || _authService.CurrentUser == null)
                 throw new InvalidOperationException("Utilizatorul trebuie să fie autentificat pentru a plasa o comandă.");
@@ -33,7 +69,8 @@ namespace restaurant_app.Services
 
             // Calculăm sumele pentru comandă
             decimal subtotal = items.Sum(i => i.TotalPrice);
-            (decimal deliveryFee, decimal discount, decimal finalAmount) = CalculateOrderAmounts(subtotal);
+            // Use the async version of the method with await
+            var (deliveryFee, discount, finalAmount) = await CalculateOrderAmountsAsync(subtotal);
 
             // Adăugăm 30 de minute pentru timpul estimat de livrare
             DateTime estimatedDeliveryTime = DateTime.Now.AddMinutes(30);
@@ -75,6 +112,7 @@ namespace restaurant_app.Services
             return orderId;
         }
 
+
         private string GenerateOrderCode()
         {
             // Format: ORD-YYMMDD-XXXX (XXXX: număr aleator între 1000 și 9999)
@@ -84,7 +122,7 @@ namespace restaurant_app.Services
             return $"ORD-{datePart}-{randomPart}";
         }
 
-        private (decimal DeliveryFee, decimal Discount, decimal FinalAmount) CalculateOrderAmounts(decimal subtotal)
+        private async Task<(decimal DeliveryFee, decimal Discount, decimal FinalAmount)> CalculateOrderAmountsAsync(decimal subtotal)
         {
             decimal deliveryFee = 0;
             decimal discount = 0;
@@ -101,7 +139,8 @@ namespace restaurant_app.Services
             if (_authService.IsLoggedIn && _authService.CurrentUser != null)
             {
                 var userId = _authService.CurrentUser.UserId;
-                bool isEligibleForDiscount = CheckDiscountEligibility(userId).Result;
+                // Use await here instead of .Result
+                bool isEligibleForDiscount = await CheckDiscountEligibility(userId);
 
                 if (isEligibleForDiscount)
                 {
