@@ -4,12 +4,14 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:restaurant_app.Views"
+        xmlns:helpers="clr-namespace:restaurant_app.Helpers"
         mc:Ignorable="d"
         Title="Restaurant App" Height="700" Width="1000">
-
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <helpers:InvertedBooleanToVisibilityConverter x:Key="InvertedBoolToVis"/>
     </Window.Resources>
+
 
     <Grid>
         <Grid.RowDefinitions>
@@ -154,7 +156,7 @@
             <!-- Content area for menu/search results -->
             <Grid Grid.Column="1">
                 <!-- Menu view -->
-                <ScrollViewer Visibility="{Binding IsSearchResultsVisible, Converter={StaticResource BoolToVis}, ConverterParameter=inverse}">
+                <ScrollViewer Visibility="{Binding IsMainMenuVisible, Converter={StaticResource BoolToVis}}">
                     <StackPanel Margin="10">
                         <TextBlock Text="Meniu Restaurant" 
                                    FontSize="24" FontWeight="Bold" 

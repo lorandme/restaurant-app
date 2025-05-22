@@ -54,5 +54,27 @@ namespace restaurant_app.Helpers
         {
             throw new NotImplementedException();
         }
+
+        public class InvertedBooleanToVisibilityConverter : IValueConverter
+        {
+            public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            {
+                bool boolValue = (bool)value;
+
+                // If parameter is "inverse", invert the boolean value
+                if (parameter != null && parameter.ToString().Equals("inverse", StringComparison.OrdinalIgnoreCase))
+                {
+                    boolValue = !boolValue;
+                }
+
+                return boolValue ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            {
+                throw new NotImplementedException();
+            }
+        }
+
     }
 }

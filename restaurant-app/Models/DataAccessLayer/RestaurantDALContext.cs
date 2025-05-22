@@ -21,21 +21,23 @@ namespace restaurant_app.Models.DataAccessLayer
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            // Call the base OnModelCreating to include all the entity configurations from RestaurantDbContext
+            // Call the base implementation first to include all configurations from parent context
             base.OnModelCreating(modelBuilder);
 
-            // Configure the query result entities - mark them as having no key since they're just for queries
+            // Configure all result entities as keyless
             modelBuilder.Entity<ProductWithCategoryAndAllergens>()
                 .HasNoKey()
-                .ToView("ProductWithCategoryAndAllergens"); // This is a view name, not a physical table
+                .ToView(null);
 
+            // Add this configuration for MenuWithProducts
             modelBuilder.Entity<MenuWithProducts>()
                 .HasNoKey()
-                .ToView("MenuWithProducts");
+                .ToView(null);
 
+            // Add this configuration for ProductLowStock
             modelBuilder.Entity<ProductLowStock>()
                 .HasNoKey()
-                .ToView("ProductLowStock");
+                .ToView(null);
         }
 
         /// <summary>
@@ -43,9 +45,23 @@ namespace restaurant_app.Models.DataAccessLayer
         /// </summary>
         public async Task<List<ProductWithCategoryAndAllergens>> GetAvailableProductsAsync()
         {
-            return await ProductsWithCategoryAndAllergens
-                .FromSqlRaw("EXEC GetAvailableProducts")
-                .ToListAsync();
+            try
+            {
+                // Add debug logging
+                Console.WriteLine("Fetching products from database...");
+                var products = await ProductsWithCategoryAndAllergens
+                    .FromSqlRaw("EXEC GetAvailableProducts")
+                    .ToListAsync();
+
+                Console.WriteLine($"Found {products.Count} products");
+                return products;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching products: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return new List<ProductWithCategoryAndAllergens>();
+            }
         }
 
         /// <summary>
@@ -53,9 +69,23 @@ namespace restaurant_app.Models.DataAccessLayer
         /// </summary>
         public async Task<List<MenuWithProducts>> GetAvailableMenusAsync()
         {
-            return await MenusWithProducts
-                .FromSqlRaw("EXEC GetAvailableMenus")
-                .ToListAsync();
+            try
+            {
+                // Add debug logging
+                Console.WriteLine("Fetching menus from database...");
+                var menus = await MenusWithProducts
+                    .FromSqlRaw("EXEC GetAvailableMenus")
+                    .ToListAsync();
+
+                Console.WriteLine($"Found {menus.Count} menu items");
+                return menus;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching menus: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return new List<MenuWithProducts>();
+            }
         }
 
         /// <summary>
@@ -64,10 +94,22 @@ namespace restaurant_app.Models.DataAccessLayer
         /// <param name="threshold">The minimum quantity threshold</param>
         public async Task<List<ProductLowStock>> GetLowStockProductsAsync(decimal threshold)
         {
-            var param = new SqlParameter("@Threshold", threshold);
-            return await ProductsLowStock
-                .FromSqlRaw("EXEC GetLowStockProducts @Threshold", param)
-                .ToListAsync();
+            try
+            {
+                var param = new SqlParameter("@Threshold", threshold);
+                var products = await ProductsLowStock
+                    .FromSqlRaw("EXEC GetLowStockProducts @Threshold", param)
+                    .ToListAsync();
+
+                Console.WriteLine($"Found {products.Count} low stock products");
+                return products;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching low stock products: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return new List<ProductLowStock>();
+            }
         }
 
         // All other methods remain the same...
@@ -184,5 +226,126 @@ namespace restaurant_app.Models.DataAccessLayer
                 .Include(o => o.OrderDetails)
                 .ToListAsync();
         }
+
+        /// <summary>
+        /// Gets products with a direct SQL query instead of stored procedure
+        /// </summary>
+        /// <summary>
+        /// Gets products with a direct SQL query instead of stored procedure
+        /// </summary>
+        public async Task<List<ProductWithCategoryAndAllergens>> GetProductsDirectSqlAsync()
+        {
+            try
+            {
+                Console.WriteLine("Executing direct SQL query for products...");
+
+                string sqlQuery = @"
+            SELECT 
+                p.ProductId AS ProductID, 
+                p.Name AS ProductName, 
+                p.Price, 
+                p.PortionQuantity, 
+                p.PortionUnit, 
+                p.TotalQuantity, 
+                p.CategoryId AS CategoryID, 
+                c.Name AS CategoryName,
+                '' AS Allergens  -- We'll simplify this for now
+            FROM Products p
+            JOIN Categories c ON p.CategoryId = c.CategoryId
+            WHERE p.IsAvailable = 1 OR p.IsAvailable IS NULL";
+
+                // Option 1: Using FromSqlRaw with the DbSet
+                var products = await ProductsWithCategoryAndAllergens
+                    .FromSqlRaw(sqlQuery)
+                    .ToListAsync();
+
+                Console.WriteLine($"Direct SQL found {products.Count} products");
+
+                // Log the names of first few products for debugging
+                if (products.Count > 0)
+                {
+                    foreach (var p in products.Take(3))
+                    {
+                        Console.WriteLine($"  - Product: {p.ProductID}, {p.ProductName}, {p.Price}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("No products found with direct SQL query!");
+
+                    // Let's try a simpler query to confirm if products table has data
+                    var countQuery = "SELECT COUNT(*) FROM Products";
+                    var count = await Database.ExecuteSqlRawAsync(countQuery);
+                    Console.WriteLine($"Product count in database: {count}");
+                }
+
+                return products;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in direct SQL query: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+
+                // Option 2: If Option 1 fails, try manual mapping approach
+                try
+                {
+                    Console.WriteLine("Attempting alternative SQL approach...");
+                    var products = new List<ProductWithCategoryAndAllergens>();
+
+                    using (var command = Database.GetDbConnection().CreateCommand())
+                    {
+                        command.CommandText = @"
+                    SELECT 
+                        p.ProductId, 
+                        p.Name, 
+                        p.Price, 
+                        p.PortionQuantity, 
+                        p.PortionUnit, 
+                        p.TotalQuantity, 
+                        p.CategoryId, 
+                        c.Name AS CategoryName
+                    FROM Products p
+                    JOIN Categories c ON p.CategoryId = c.CategoryId";
+
+                        if (Database.GetDbConnection().State != System.Data.ConnectionState.Open)
+                        {
+                            await Database.GetDbConnection().OpenAsync();
+                        }
+
+                        using (var reader = await command.ExecuteReaderAsync())
+                        {
+                            while (await reader.ReadAsync())
+                            {
+                                products.Add(new ProductWithCategoryAndAllergens
+                                {
+                                    ProductID = reader.GetInt32(0),
+                                    ProductName = reader.GetString(1),
+                                    Price = reader.GetDecimal(2),
+                                    PortionQuantity = reader.GetDecimal(3),
+                                    PortionUnit = reader.GetString(4),
+                                    TotalQuantity = reader.GetDecimal(5),
+                                    CategoryID = reader.GetInt32(6),
+                                    CategoryName = reader.GetString(7),
+                                    Allergens = string.Empty
+                                });
+                            }
+                        }
+                    }
+
+                    Console.WriteLine($"Alternative query found {products.Count} products");
+                    return products;
+                }
+                catch (Exception ex2)
+                {
+                    Console.WriteLine($"Alternative SQL approach failed: {ex2.Message}");
+                    return new List<ProductWithCategoryAndAllergens>();
+                }
+            }
+        }
+
+
+
     }
+
+
 }

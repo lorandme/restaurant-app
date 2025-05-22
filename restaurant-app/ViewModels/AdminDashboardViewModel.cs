@@ -299,14 +299,26 @@ namespace restaurant_app.ViewModels
 
                 var products = await _menuService.GetAllProductsAsync();
 
+                // Add debug message to show how many products were fetched
+                Console.WriteLine($"Fetched {products.Count} products from service");
+
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     Products.Clear();
-                    foreach (var product in products)
+                    if (products.Count == 0)
                     {
-                        Products.Add(product);
+                        StatusMessage = "Nu s-au găsit produse în baza de date!";
                     }
-                    StatusMessage = "Produse încărcate";
+                    else
+                    {
+                        foreach (var product in products)
+                        {
+                            Products.Add(product);
+                            // Log each product added
+                            Console.WriteLine($"Added product: {product.ProductName}");
+                        }
+                        StatusMessage = $"S-au încărcat {products.Count} produse";
+                    }
                     IsLoading = false;
                 });
             }
@@ -314,7 +326,9 @@ namespace restaurant_app.ViewModels
             {
                 Application.Current.Dispatcher.Invoke(() =>
                 {
-                    StatusMessage = $"Eroare: {ex.Message}";
+                    StatusMessage = $"Eroare la încărcarea produselor: {ex.Message}";
+                    Console.WriteLine($"Error in LoadProducts: {ex.Message}");
+                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
                     IsLoading = false;
                 });
             }
@@ -593,19 +607,34 @@ namespace restaurant_app.ViewModels
         // These methods would handle opening appropriate dialogs or performing the operations
         // I'm providing stubs that you can implement based on your existing code
 
+        // --- Category CRUD methods ---
         private async void AddCategory()
         {
             var name = PromptForInput("Introduceți numele categoriei:");
             if (string.IsNullOrWhiteSpace(name)) return;
 
-            var category = new Category { Name = name };
+            var description = PromptForInput("Introduceți descrierea categoriei (opțional):");
+
+            var category = new Category
+            {
+                Name = name,
+                Description = description
+            };
+
             try
             {
                 IsLoading = true;
-                // Adaugă categoria în baza de date (presupunem că ai o metodă AddCategoryAsync)
-                await _menuService.AddCategoryAsync(category);
-                await LoadCategories();
-                StatusMessage = "Categorie adăugată cu succes!";
+                var result = await _menuService.AddCategoryAsync(category);
+
+                if (result)
+                {
+                    await LoadCategories();
+                    StatusMessage = "Categorie adăugată cu succes!";
+                }
+                else
+                {
+                    StatusMessage = "Nu s-a putut adăuga categoria!";
+                }
             }
             catch (Exception ex)
             {
@@ -620,16 +649,35 @@ namespace restaurant_app.ViewModels
         private async void EditCategory()
         {
             if (SelectedCategory == null) return;
+
             var name = PromptForInput("Editați numele categoriei:", SelectedCategory.Name);
             if (string.IsNullOrWhiteSpace(name)) return;
 
-            SelectedCategory.Name = name;
+            var description = PromptForInput("Editați descrierea categoriei:",
+                SelectedCategory.Description ?? "");
+
+            // Create new category object with updated values
+            var category = new Category
+            {
+                CategoryId = SelectedCategory.CategoryId,
+                Name = name,
+                Description = description
+            };
+
             try
             {
                 IsLoading = true;
-                await _menuService.UpdateCategoryAsync(SelectedCategory);
-                await LoadCategories();
-                StatusMessage = "Categorie editată cu succes!";
+                var result = await _menuService.UpdateCategoryAsync(category);
+
+                if (result)
+                {
+                    await LoadCategories();
+                    StatusMessage = "Categorie editată cu succes!";
+                }
+                else
+                {
+                    StatusMessage = "Nu s-a putut edita categoria!";
+                }
             }
             catch (Exception ex)
             {
@@ -644,14 +692,26 @@ namespace restaurant_app.ViewModels
         private async void DeleteCategory()
         {
             if (SelectedCategory == null) return;
-            if (MessageBox.Show("Sigur ștergi categoria?", "Confirmare", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+
+            if (MessageBox.Show("Sigur doriți să ștergeți această categorie? " +
+                "Această acțiune nu poate fi anulată și va eșua dacă categoria are produse sau meniuri asociate.",
+                "Confirmare ștergere", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
 
             try
             {
                 IsLoading = true;
-                await _menuService.DeleteCategoryAsync(SelectedCategory.CategoryId);
-                await LoadCategories();
-                StatusMessage = "Categorie ștearsă!";
+                var result = await _menuService.DeleteCategoryAsync(SelectedCategory.CategoryId);
+
+                if (result)
+                {
+                    await LoadCategories();
+                    StatusMessage = "Categorie ștearsă cu succes!";
+                }
+                else
+                {
+                    StatusMessage = "Nu s-a putut șterge categoria! Verificați dacă are produse sau meniuri asociate.";
+                }
             }
             catch (Exception ex)
             {
@@ -663,20 +723,61 @@ namespace restaurant_app.ViewModels
             }
         }
 
-
+        // --- Product CRUD methods ---
         private async void AddProduct()
         {
-            // Exemplu simplificat, poți folosi un dialog custom pentru toate detaliile
+            // For a proper implementation, you should create a custom dialog
+            // This is a simplified version
             var name = PromptForInput("Introduceți numele produsului:");
             if (string.IsNullOrWhiteSpace(name)) return;
 
-            var product = new Product { Name = name, CategoryId = SelectedCategory?.CategoryId ?? 0 };
+            var priceStr = PromptForInput("Introduceți prețul produsului:");
+            if (!decimal.TryParse(priceStr, out decimal price)) return;
+
+            var portionQuantityStr = PromptForInput("Introduceți cantitatea per porție:");
+            if (!decimal.TryParse(portionQuantityStr, out decimal portionQuantity)) return;
+
+            var portionUnit = PromptForInput("Introduceți unitatea de măsură (g, ml, buc):");
+            if (string.IsNullOrWhiteSpace(portionUnit)) return;
+
+            var totalQuantityStr = PromptForInput("Introduceți cantitatea totală în stoc:");
+            if (!decimal.TryParse(totalQuantityStr, out decimal totalQuantity)) return;
+
+            // Select category
+            if (Categories.Count == 0)
+            {
+                StatusMessage = "Nu există categorii. Creați mai întâi o categorie.";
+                return;
+            }
+
+            // In a real app, you would show a dropdown to select the category
+            int categoryId = SelectedCategory?.CategoryId ?? Categories.First().CategoryId;
+
+            var product = new Product
+            {
+                Name = name,
+                Price = price,
+                PortionQuantity = portionQuantity,
+                PortionUnit = portionUnit,
+                TotalQuantity = totalQuantity,
+                CategoryId = categoryId,
+                IsAvailable = true
+            };
+
             try
             {
                 IsLoading = true;
-                await _menuService.AddProductAsync(product, new List<int>(), new List<string>());
-                await LoadProducts();
-                StatusMessage = "Produs adăugat!";
+                var result = await _menuService.AddProductAsync(product, new List<int>(), new List<string>());
+
+                if (result)
+                {
+                    await LoadProducts();
+                    StatusMessage = "Produs adăugat cu succes!";
+                }
+                else
+                {
+                    StatusMessage = "Nu s-a putut adăuga produsul!";
+                }
             }
             catch (Exception ex)
             {
@@ -691,24 +792,52 @@ namespace restaurant_app.ViewModels
         private async void EditProduct()
         {
             if (SelectedProduct == null) return;
+
+            // In a real app, this would be handled with a dialog form
             var name = PromptForInput("Editați numele produsului:", SelectedProduct.ProductName);
             if (string.IsNullOrWhiteSpace(name)) return;
 
-            // Creezi un obiect Product cu datele noi
+            var priceStr = PromptForInput("Editați prețul produsului:", SelectedProduct.Price.ToString());
+            if (!decimal.TryParse(priceStr, out decimal price)) return;
+
+            var portionQuantityStr = PromptForInput("Editați cantitatea per porție:",
+                SelectedProduct.PortionQuantity.ToString());
+            if (!decimal.TryParse(portionQuantityStr, out decimal portionQuantity)) return;
+
+            var portionUnit = PromptForInput("Editați unitatea de măsură (g, ml, buc):",
+                SelectedProduct.PortionUnit);
+            if (string.IsNullOrWhiteSpace(portionUnit)) return;
+
+            var totalQuantityStr = PromptForInput("Editați cantitatea totală în stoc:",
+                SelectedProduct.TotalQuantity.ToString());
+            if (!decimal.TryParse(totalQuantityStr, out decimal totalQuantity)) return;
+
             var product = new Product
             {
                 ProductId = SelectedProduct.ProductID,
                 Name = name,
-                CategoryId = SelectedProduct.CategoryID
-                // Completează și alte proprietăți după caz
+                Price = price,
+                PortionQuantity = portionQuantity,
+                PortionUnit = portionUnit,
+                TotalQuantity = totalQuantity,
+                CategoryId = SelectedProduct.CategoryID,
+                IsAvailable = true
             };
 
             try
             {
                 IsLoading = true;
-                await _menuService.UpdateProductAsync(product, new List<int>(), new List<string>());
-                await LoadProducts();
-                StatusMessage = "Produs editat!";
+                var result = await _menuService.UpdateProductAsync(product, new List<int>(), new List<string>());
+
+                if (result)
+                {
+                    await LoadProducts();
+                    StatusMessage = "Produs editat cu succes!";
+                }
+                else
+                {
+                    StatusMessage = "Nu s-a putut edita produsul!";
+                }
             }
             catch (Exception ex)
             {
@@ -723,14 +852,26 @@ namespace restaurant_app.ViewModels
         private async void DeleteProduct()
         {
             if (SelectedProduct == null) return;
-            if (MessageBox.Show("Sigur ștergi produsul?", "Confirmare", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+
+            if (MessageBox.Show("Sigur doriți să ștergeți acest produs? " +
+                "Dacă produsul este folosit în comenzi, va fi doar marcat ca indisponibil.",
+                "Confirmare ștergere", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
 
             try
             {
                 IsLoading = true;
-                await _menuService.DeleteProductAsync(SelectedProduct.ProductID);
-                await LoadProducts();
-                StatusMessage = "Produs șters!";
+                var result = await _menuService.DeleteProductAsync(SelectedProduct.ProductID);
+
+                if (result)
+                {
+                    await LoadProducts();
+                    StatusMessage = "Produs șters sau marcat ca indisponibil cu succes!";
+                }
+                else
+                {
+                    StatusMessage = "Nu s-a putut șterge produsul!";
+                }
             }
             catch (Exception ex)
             {
@@ -742,21 +883,47 @@ namespace restaurant_app.ViewModels
             }
         }
 
-
+        // --- Menu CRUD methods ---
         private async void AddMenu()
         {
             var name = PromptForInput("Introduceți numele meniului:");
             if (string.IsNullOrWhiteSpace(name)) return;
 
-            var menu = new Menu { /* Completează cu alte proprietăți dacă este nevoie */ };
-            // Exemplu: menu.Name = name; dacă ai proprietatea Name
+            var description = PromptForInput("Introduceți descrierea meniului (opțional):");
+
+            // Check if categories exist
+            if (Categories.Count == 0)
+            {
+                StatusMessage = "Nu există categorii. Creați mai întâi o categorie.";
+                return;
+            }
+
+            // Get selected category or default to first category
+            var categoryId = SelectedCategory?.CategoryId ??
+                (Categories.Count > 0 ? Categories[0].CategoryId : 1);
+
+            var menu = new Menu
+            {
+                Name = name,
+                Description = description,
+                CategoryId = categoryId,
+                IsAvailable = true
+            };
 
             try
             {
                 IsLoading = true;
-                await _menuService.AddMenuAsync(menu);
-                await LoadMenus();
-                StatusMessage = "Meniu adăugat cu succes!";
+                var result = await _menuService.AddMenuAsync(menu);
+
+                if (result)
+                {
+                    await LoadMenus();
+                    StatusMessage = "Meniu adăugat cu succes!";
+                }
+                else
+                {
+                    StatusMessage = "Nu s-a putut adăuga meniul!";
+                }
             }
             catch (Exception ex)
             {
@@ -771,23 +938,37 @@ namespace restaurant_app.ViewModels
         private async void EditMenu()
         {
             if (SelectedMenu == null) return;
+
             var name = PromptForInput("Editați numele meniului:", SelectedMenu.MenuName);
             if (string.IsNullOrWhiteSpace(name)) return;
 
-            // Creezi un obiect Menu cu datele noi
+            var description = PromptForInput("Editați descrierea meniului:",
+                SelectedMenu.Description ?? "");
+
+            // Create a new Menu with updated properties
             var menu = new Menu
             {
                 MenuId = SelectedMenu.MenuID,
-                // Name = name, // dacă ai proprietatea Name
-                // Completează și alte proprietăți după caz
+                Name = name,
+                Description = description,
+                CategoryId = SelectedMenu.CategoryID,
+                IsAvailable = true
             };
 
             try
             {
                 IsLoading = true;
-                await _menuService.UpdateMenuAsync(menu);
-                await LoadMenus();
-                StatusMessage = "Meniu editat cu succes!";
+                var result = await _menuService.UpdateMenuAsync(menu);
+
+                if (result)
+                {
+                    await LoadMenus();
+                    StatusMessage = "Meniu editat cu succes!";
+                }
+                else
+                {
+                    StatusMessage = "Nu s-a putut edita meniul!";
+                }
             }
             catch (Exception ex)
             {
@@ -802,14 +983,26 @@ namespace restaurant_app.ViewModels
         private async void DeleteMenu()
         {
             if (SelectedMenu == null) return;
-            if (MessageBox.Show("Sigur ștergi meniul?", "Confirmare", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+
+            if (MessageBox.Show("Sigur doriți să ștergeți acest meniu? " +
+                "Dacă meniul este folosit în comenzi, va fi doar marcat ca indisponibil.",
+                "Confirmare ștergere", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
 
             try
             {
                 IsLoading = true;
-                await _menuService.DeleteMenuAsync(SelectedMenu.MenuID);
-                await LoadMenus();
-                StatusMessage = "Meniu șters!";
+                var result = await _menuService.DeleteMenuAsync(SelectedMenu.MenuID);
+
+                if (result)
+                {
+                    await LoadMenus();
+                    StatusMessage = "Meniu șters sau marcat ca indisponibil cu succes!";
+                }
+                else
+                {
+                    StatusMessage = "Nu s-a putut șterge meniul!";
+                }
             }
             catch (Exception ex)
             {
@@ -821,19 +1014,34 @@ namespace restaurant_app.ViewModels
             }
         }
 
-
+        // --- Allergen CRUD methods ---
         private async void AddAllergen()
         {
             var name = PromptForInput("Introduceți numele alergenului:");
             if (string.IsNullOrWhiteSpace(name)) return;
 
-            var allergen = new Allergen { Name = name };
+            var description = PromptForInput("Introduceți descrierea alergenului (opțional):");
+
+            var allergen = new Allergen
+            {
+                Name = name,
+                Description = description
+            };
+
             try
             {
                 IsLoading = true;
-                await _menuService.AddAllergenAsync(allergen);
-                await LoadAllergens();
-                StatusMessage = "Alergen adăugat cu succes!";
+                var result = await _menuService.AddAllergenAsync(allergen);
+
+                if (result)
+                {
+                    await LoadAllergens();
+                    StatusMessage = "Alergen adăugat cu succes!";
+                }
+                else
+                {
+                    StatusMessage = "Nu s-a putut adăuga alergenul!";
+                }
             }
             catch (Exception ex)
             {
@@ -848,16 +1056,34 @@ namespace restaurant_app.ViewModels
         private async void EditAllergen()
         {
             if (SelectedAllergen == null) return;
+
             var name = PromptForInput("Editați numele alergenului:", SelectedAllergen.Name);
             if (string.IsNullOrWhiteSpace(name)) return;
 
-            SelectedAllergen.Name = name;
+            var description = PromptForInput("Editați descrierea alergenului:",
+                SelectedAllergen.Description ?? "");
+
+            var allergen = new Allergen
+            {
+                AllergenId = SelectedAllergen.AllergenId,
+                Name = name,
+                Description = description
+            };
+
             try
             {
                 IsLoading = true;
-                await _menuService.UpdateAllergenAsync(SelectedAllergen);
-                await LoadAllergens();
-                StatusMessage = "Alergen editat cu succes!";
+                var result = await _menuService.UpdateAllergenAsync(allergen);
+
+                if (result)
+                {
+                    await LoadAllergens();
+                    StatusMessage = "Alergen editat cu succes!";
+                }
+                else
+                {
+                    StatusMessage = "Nu s-a putut edita alergenul!";
+                }
             }
             catch (Exception ex)
             {
@@ -872,14 +1098,26 @@ namespace restaurant_app.ViewModels
         private async void DeleteAllergen()
         {
             if (SelectedAllergen == null) return;
-            if (MessageBox.Show("Sigur ștergi alergenul?", "Confirmare", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+
+            if (MessageBox.Show("Sigur doriți să ștergeți acest alergen? " +
+                "Acțiunea nu poate fi anulată și va șterge și relațiile cu produsele.",
+                "Confirmare ștergere", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
 
             try
             {
                 IsLoading = true;
-                await _menuService.DeleteAllergenAsync(SelectedAllergen.AllergenId);
-                await LoadAllergens();
-                StatusMessage = "Alergen șters!";
+                var result = await _menuService.DeleteAllergenAsync(SelectedAllergen.AllergenId);
+
+                if (result)
+                {
+                    await LoadAllergens();
+                    StatusMessage = "Alergen șters cu succes!";
+                }
+                else
+                {
+                    StatusMessage = "Nu s-a putut șterge alergenul!";
+                }
             }
             catch (Exception ex)
             {
@@ -890,6 +1128,7 @@ namespace restaurant_app.ViewModels
                 IsLoading = false;
             }
         }
+
 
 
         private string PromptForInput(string message, string defaultValue = "")

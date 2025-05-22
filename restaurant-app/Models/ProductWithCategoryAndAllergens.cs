@@ -56,36 +56,4 @@ namespace restaurant_app.Models
         }
     }
 
-    // Helper extension methods for filtering collections
-    public static class ProductExtensions
-    {
-        // Filter products by keyword in name
-        public static IEnumerable<ProductWithCategoryAndAllergens> FilterByKeyword(
-            this IEnumerable<ProductWithCategoryAndAllergens> products, string keyword)
-        {
-            if (string.IsNullOrEmpty(keyword))
-                return products;
-
-            return products.Where(p => p.MatchesKeyword(keyword));
-        }
-
-        // Filter products that contain a specific allergen
-        public static IEnumerable<ProductWithCategoryAndAllergens> FilterByAllergen(
-            this IEnumerable<ProductWithCategoryAndAllergens> products, string allergen, bool exclude = false)
-        {
-            if (string.IsNullOrEmpty(allergen))
-                return products;
-
-            return exclude
-                ? products.Where(p => !p.ContainsAllergen(allergen))
-                : products.Where(p => p.ContainsAllergen(allergen));
-        }
-
-        // Group products by category
-        public static IEnumerable<IGrouping<string, ProductWithCategoryAndAllergens>> GroupByCategory(
-            this IEnumerable<ProductWithCategoryAndAllergens> products)
-        {
-            return products.GroupBy(p => p.CategoryName);
-        }
-    }
 }

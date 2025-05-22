@@ -23,7 +23,6 @@ namespace restaurant_app.ViewModels
         private ObservableCollection<MenuWithProducts> _menus = new ObservableCollection<MenuWithProducts>();
         private ObservableCollection<Category> _categories = new ObservableCollection<Category>();
         private ObservableCollection<Models.ProductWithCategoryAndAllergens> _searchResults = new ObservableCollection<Models.ProductWithCategoryAndAllergens>();
-        // Update the type declaration to use fully qualified namespace for ProductWithCategoryAndAllergens
         private Dictionary<string, List<restaurant_app.Models.ProductWithCategoryAndAllergens>> _categorizedProducts;
 
         // UI Properties
@@ -35,6 +34,7 @@ namespace restaurant_app.ViewModels
         private bool _excludeAllergen;
         private Category _selectedCategory;
         private int _cartItemCount = 0;
+        private bool _isMainMenuVisible = true;
 
         public ObservableCollection<Models.ProductWithCategoryAndAllergens> Products
         {
@@ -75,7 +75,14 @@ namespace restaurant_app.ViewModels
         public bool IsSearchResultsVisible
         {
             get => _isSearchResultsVisible;
-            set => SetProperty(ref _isSearchResultsVisible, value);
+            set
+            {
+                if (SetProperty(ref _isSearchResultsVisible, value))
+                {
+                    // Update IsMainMenuVisible when IsSearchResultsVisible changes
+                    IsMainMenuVisible = !value;
+                }
+            }
         }
 
         public ObservableCollection<Models.ProductWithCategoryAndAllergens> SearchResults
@@ -133,6 +140,11 @@ namespace restaurant_app.ViewModels
             $"{_authService.CurrentUser?.FirstName} {_authService.CurrentUser?.LastName}"
             : "Vizitator";
 
+        public bool IsMainMenuVisible
+        {
+            get => _isMainMenuVisible;
+            set => SetProperty(ref _isMainMenuVisible, value);
+        }
 
         // Commands
         public ICommand SearchByKeywordCommand { get; }
@@ -167,16 +179,19 @@ namespace restaurant_app.ViewModels
             LoginCommand = new RelayCommand(_ => ExecuteLogin());
             LogoutCommand = new RelayCommand(_ => ExecuteLogout(), _ => IsUserLoggedIn);
             RegisterCommand = new RelayCommand(_ => ExecuteRegister());
-            BackToMenuCommand = new RelayCommand(_ => IsSearchResultsVisible = false);
+            BackToMenuCommand = new RelayCommand(_ => {
+                IsSearchResultsVisible = false;
+                IsMainMenuVisible = true;
+            });
             ViewMenuCommand = new RelayCommand(_ => ExecuteViewMenu());
             ViewMyOrdersCommand = new RelayCommand(_ => ExecuteViewMyOrders(), _ => IsUserClient);
             AdminDashboardCommand = new RelayCommand(_ => ExecuteAdminDashboard(), _ => IsUserEmployee);
         }
 
-
         private void ExecuteViewMenu()
         {
             IsSearchResultsVisible = false;
+            IsMainMenuVisible = true;
             StatusMessage = "Vizualizare meniu restaurant";
         }
 
@@ -197,7 +212,6 @@ namespace restaurant_app.ViewModels
                 var configService = ServiceLocator.Instance.ConfigService;
 
                 // Create and initialize the OrderViewModel
-                // Pass null for NavigationService since it might not be initialized
                 var orderViewModel = new OrderViewModel(
                     orderService,
                     authService,
@@ -228,9 +242,6 @@ namespace restaurant_app.ViewModels
             }
         }
 
-
-
-
         private void ExecuteViewCart()
         {
             if (!IsUserClient)
@@ -247,7 +258,6 @@ namespace restaurant_app.ViewModels
                 var configService = ServiceLocator.Instance.ConfigService;
 
                 // Create and initialize the OrderViewModel
-                // Pass null for NavigationService since it might not be initialized
                 var orderViewModel = new OrderViewModel(
                     orderService,
                     authService,
@@ -277,9 +287,6 @@ namespace restaurant_app.ViewModels
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
-
-
 
         private void ExecuteAdminDashboard()
         {
@@ -320,7 +327,6 @@ namespace restaurant_app.ViewModels
             }
         }
 
-
         private void FilterProductsByCategory(Category category)
         {
             if (category == null)
@@ -329,12 +335,27 @@ namespace restaurant_app.ViewModels
             try
             {
                 IsLoading = true;
-                var filteredProducts = Products.Where(p => p.CategoryID == category.CategoryId).ToList();
+
+                // Clear previous search results first
                 SearchResults.Clear();
+
+                // Get filtered results
+                var filteredProducts = Products.Where(p => p.CategoryID == category.CategoryId).ToList();
+
+                // Make sure we're not adding duplicates
+                var resultIds = new HashSet<int>();
+
                 foreach (var product in filteredProducts)
                 {
-                    SearchResults.Add(product);
+                    if (!resultIds.Contains(product.ProductID))
+                    {
+                        resultIds.Add(product.ProductID);
+                        SearchResults.Add(product);
+                    }
                 }
+
+                // Set visibility properties in the correct order
+                IsMainMenuVisible = false;
                 IsSearchResultsVisible = true;
                 StatusMessage = $"Produse din categoria: {category.Name}";
             }
@@ -398,14 +419,27 @@ namespace restaurant_app.ViewModels
             try
             {
                 IsLoading = true;
+
+                // Clear previous search results first
+                SearchResults.Clear();
+
+                // Get search results from service
                 var results = await _menuService.SearchProductsByKeywordAsync(SearchKeyword);
 
-                SearchResults.Clear();
+                // Make sure we're not adding duplicates
+                var resultIds = new HashSet<int>();
+
                 foreach (var result in results)
                 {
-                    SearchResults.Add(result);
+                    if (!resultIds.Contains(result.ProductID))
+                    {
+                        resultIds.Add(result.ProductID);
+                        SearchResults.Add(result);
+                    }
                 }
 
+                // Set visibility properties in the correct order
+                IsMainMenuVisible = false;
                 IsSearchResultsVisible = true;
                 StatusMessage = $"Căutare după: {SearchKeyword}";
             }
@@ -424,14 +458,27 @@ namespace restaurant_app.ViewModels
             try
             {
                 IsLoading = true;
+
+                // Clear previous search results first
+                SearchResults.Clear();
+
+                // Get search results from service
                 var results = await _menuService.SearchProductsByAllergenAsync(SearchAllergen, ExcludeAllergen);
 
-                SearchResults.Clear();
+                // Make sure we're not adding duplicates
+                var resultIds = new HashSet<int>();
+
                 foreach (var result in results)
                 {
-                    SearchResults.Add(result);
+                    if (!resultIds.Contains(result.ProductID))
+                    {
+                        resultIds.Add(result.ProductID);
+                        SearchResults.Add(result);
+                    }
                 }
 
+                // Set visibility properties in the correct order
+                IsMainMenuVisible = false;
                 IsSearchResultsVisible = true;
                 StatusMessage = $"Căutare după alergen: {SearchAllergen} ({(ExcludeAllergen ? "exclude" : "include")})";
             }
@@ -470,9 +517,6 @@ namespace restaurant_app.ViewModels
             CartItemCount++;
             StatusMessage = "Produs adăugat în coș";
         }
-
-        
-
 
         private void ExecuteLogin()
         {
