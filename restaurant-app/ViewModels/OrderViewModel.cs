@@ -79,13 +79,15 @@ namespace restaurant_app.ViewModels
         public ICommand RemoveItemCommand { get; }
         public ICommand ClearCartCommand { get; }
 
+        public ICommand NavigateBackCommand { get; }
+
         public OrderViewModel(OrderService orderService, AuthService authService,
-                             ConfigService configService, NavigationService navigationService)
+                         ConfigService configService, NavigationService navigationService)
         {
             _orderService = orderService ?? throw new ArgumentNullException(nameof(orderService));
             _authService = authService ?? throw new ArgumentNullException(nameof(authService));
             _configService = configService ?? throw new ArgumentNullException(nameof(configService));
-            _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
+            _navigationService = navigationService; // Allow null NavigationService
 
             // Initialize delivery address from current user if available
             if (_authService.IsLoggedIn && _authService.CurrentUser != null)
@@ -97,9 +99,24 @@ namespace restaurant_app.ViewModels
             CheckoutCommand = new RelayCommand(async _ => await ExecuteCheckoutAsync(), _ => CanCheckout());
             RemoveItemCommand = new RelayCommand(ExecuteRemoveItem, _ => CartItems.Count > 0);
             ClearCartCommand = new RelayCommand(_ => ExecuteClearCart(), _ => CartItems.Count > 0);
+            NavigateBackCommand = new RelayCommand(_ => CloseCurrentWindow());
 
             // Calculate totals when cart items change
             CalculateTotals();
+        }
+
+        private void CloseCurrentWindow()
+        {
+            // Find and close the parent window that contains this view
+            foreach (System.Windows.Window window in System.Windows.Application.Current.Windows)
+            {
+                if (window.Content is System.Windows.Controls.Page page &&
+                    page.DataContext == this)
+                {
+                    window.Close();
+                    break;
+                }
+            }
         }
 
         private bool CanCheckout()

@@ -189,17 +189,97 @@ namespace restaurant_app.ViewModels
                 return;
             }
 
-            // Open orders page
-            var ordersPage = new OrderListPage();
-            var window = new Window
+            try
             {
-                Content = ordersPage,
-                Title = "Comenzile Mele",
-                Width = 800,
-                Height = 600
-            };
-            window.Show();
+                // Get required services from ServiceLocator
+                var orderService = ServiceLocator.Instance.OrderService;
+                var authService = ServiceLocator.Instance.AuthService;
+                var configService = ServiceLocator.Instance.ConfigService;
+
+                // Create and initialize the OrderViewModel
+                // Pass null for NavigationService since it might not be initialized
+                var orderViewModel = new OrderViewModel(
+                    orderService,
+                    authService,
+                    configService,
+                    null); // Pass null for NavigationService
+
+                // Create the OrderPage and set its DataContext
+                var orderPage = new OrderPage
+                {
+                    DataContext = orderViewModel
+                };
+
+                // Create and show the window
+                var window = new Window
+                {
+                    Content = orderPage,
+                    Title = "Comenzile Mele",
+                    Width = 800,
+                    Height = 600
+                };
+
+                window.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Eroare la deschiderea comenzilor: {ex.Message}", "Eroare",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
+
+
+
+
+        private void ExecuteViewCart()
+        {
+            if (!IsUserClient)
+            {
+                MessageBox.Show("Trebuie să vă autentificați pentru această acțiune.", "Autentificare necesară");
+                return;
+            }
+
+            try
+            {
+                // Get required services from ServiceLocator
+                var orderService = ServiceLocator.Instance.OrderService;
+                var authService = ServiceLocator.Instance.AuthService;
+                var configService = ServiceLocator.Instance.ConfigService;
+
+                // Create and initialize the OrderViewModel
+                // Pass null for NavigationService since it might not be initialized
+                var orderViewModel = new OrderViewModel(
+                    orderService,
+                    authService,
+                    configService,
+                    null); // Pass null for NavigationService
+
+                // Create the OrderPage and set its DataContext
+                var orderPage = new OrderPage
+                {
+                    DataContext = orderViewModel
+                };
+
+                // Create and show the window
+                var window = new Window
+                {
+                    Content = orderPage,
+                    Title = "Coșul meu",
+                    Width = 800,
+                    Height = 600
+                };
+
+                window.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Eroare la deschiderea coșului: {ex.Message}", "Eroare",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+
+
 
         private void ExecuteAdminDashboard()
         {
@@ -371,24 +451,7 @@ namespace restaurant_app.ViewModels
             StatusMessage = "Produs adăugat în coș";
         }
 
-        private void ExecuteViewCart()
-        {
-            if (!IsUserClient)
-            {
-                MessageBox.Show("Trebuie să vă autentificați pentru această acțiune.", "Autentificare necesară");
-                return;
-            }
-
-            var orderPage = new OrderPage();
-            var window = new Window
-            {
-                Content = orderPage,
-                Title = "Coșul meu",
-                Width = 800,
-                Height = 600
-            };
-            window.Show();
-        }
+        
 
 
         private void ExecuteLogin()

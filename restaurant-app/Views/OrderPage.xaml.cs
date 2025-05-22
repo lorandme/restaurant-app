@@ -6,9 +6,16 @@ using System.Globalization;
 
 namespace restaurant_app.Views
 {
-
+    public partial class OrderPage : Page
+    {
+        public OrderPage()
+        {
+            InitializeComponent();
+        }
+    }
     public class OrderStatusToColorConverter : IValueConverter
     {
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is string status)
