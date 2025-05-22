@@ -1,0 +1,312 @@
+﻿<Page x:Class="restaurant_app.Views.AdminProductsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      xmlns:local="clr-namespace:restaurant_app.Views"
+      xmlns:vm="clr-namespace:restaurant_app.ViewModels"
+      mc:Ignorable="d" 
+      d:DesignHeight="650" d:DesignWidth="900"
+      Title="Administrare Produse">
+
+    <Page.Resources>
+        <Style x:Key="ButtonStyle" TargetType="Button">
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Background" Value="#FF4C8C4A"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="MinWidth" Value="100"/>
+            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="5" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#FF6AAC68"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#FF3A6C39"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#FFB5B5B5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="BorderBrush" Value="#FFDDDDDD"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="5" ShadowDepth="2" Opacity="0.2"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#FF4C8C4A" Padding="15" Height="60">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" 
+                       Text="Administrare Produse" 
+                       FontSize="22" FontWeight="Bold" 
+                       VerticalAlignment="Center"
+                       Foreground="White"/>
+
+                <Button Grid.Column="2" Content="Înapoi la Dashboard" 
+                    Style="{StaticResource ButtonStyle}"
+                    Command="{Binding NavigateBackCommand}"/>
+            </Grid>
+        </Border>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1" Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="350"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Product List -->
+            <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="10">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Lista Produselor" 
+                           FontSize="18" FontWeight="Bold" Margin="0,0,0,10"/>
+
+                    <ListView ItemsSource="{Binding Products}" 
+                          SelectedItem="{Binding SelectedProduct}"
+                          BorderThickness="0" Background="Transparent">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Nume" Width="180">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <GridViewColumn Header="Categorie" Width="120">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Category.Name}" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <GridViewColumn Header="Preț" Width="80">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Price, StringFormat={}{0:C}}" />
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <GridViewColumn Header="Porție" Width="80">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock>
+                                                <Run Text="{Binding PortionQuantity}" />
+                                                <Run Text=" " />
+                                                <Run Text="{Binding PortionUnit}" />
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <GridViewColumn Header="Stoc" Width="80">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock>
+                                                <Run Text="{Binding TotalQuantity}" />
+                                                <Run Text=" " />
+                                                <Run Text="{Binding PortionUnit}" />
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <GridViewColumn Header="Disponibil" Width="80">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsAvailable}" IsEnabled="False"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+
+                                <GridViewColumn Header="Acțiuni" Width="150">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="Editează" 
+                                                    Style="{StaticResource ButtonStyle}"
+                                                    Command="{Binding DataContext.EditProductCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                    CommandParameter="{Binding}"/>
+
+                                                <Button Content="Șterge" 
+                                                    Style="{StaticResource ButtonStyle}"
+                                                    Background="#FFCC0000"
+                                                    Command="{Binding DataContext.DeleteProductCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                    CommandParameter="{Binding}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </DockPanel>
+            </Border>
+
+            <!-- Product Edit Panel -->
+            <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="15" Margin="10,5,0,5">
+                <ScrollViewer>
+                    <StackPanel>
+                        <TextBlock Text="Adaugă/Editează Produs" 
+                               FontSize="18" FontWeight="Bold" Margin="0,0,0,15"/>
+
+                        <!-- Product Name -->
+                        <TextBlock Text="Nume:" FontWeight="Bold" Margin="0,5,0,0"/>
+                        <TextBox Text="{Binding EditingProduct.Name, UpdateSourceTrigger=PropertyChanged}" 
+                             Padding="5" Margin="0,5,0,0"/>
+
+                        <!-- Product Price -->
+                        <TextBlock Text="Preț (RON):" FontWeight="Bold" Margin="0,10,0,0"/>
+                        <TextBox Text="{Binding EditingProduct.Price, UpdateSourceTrigger=PropertyChanged}" 
+                             Padding="5" Margin="0,5,0,0"/>
+
+                        <!-- Portion Quantity and Unit -->
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                <TextBlock Text="Cantitate porție:" FontWeight="Bold"/>
+                                <TextBox Text="{Binding EditingProduct.PortionQuantity, UpdateSourceTrigger=PropertyChanged}" 
+                                     Padding="5" Margin="0,5,0,0"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Unitate măsură:" FontWeight="Bold"/>
+                                <TextBox Text="{Binding EditingProduct.PortionUnit, UpdateSourceTrigger=PropertyChanged}" 
+                                     Padding="5" Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Total Stock Quantity -->
+                        <TextBlock Text="Cantitate stoc:" FontWeight="Bold" Margin="0,10,0,0"/>
+                        <TextBox Text="{Binding EditingProduct.TotalQuantity, UpdateSourceTrigger=PropertyChanged}" 
+                             Padding="5" Margin="0,5,0,0"/>
+
+                        <!-- Category -->
+                        <TextBlock Text="Categorie:" FontWeight="Bold" Margin="0,10,0,0"/>
+                        <ComboBox ItemsSource="{Binding Categories}" 
+                              DisplayMemberPath="Name"
+                              SelectedItem="{Binding SelectedCategory}"
+                              Margin="0,5,0,0" Padding="5"/>
+
+                        <!-- Is Available -->
+                        <CheckBox Content="Disponibil" 
+                              IsChecked="{Binding EditingProduct.IsAvailable}" 
+                              Margin="0,10,0,0"/>
+
+                        <!-- Allergens -->
+                        <TextBlock Text="Alergeni:" FontWeight="Bold" Margin="0,15,0,5"/>
+                        <ListView ItemsSource="{Binding AvailableAllergens}" 
+                              Height="100" Margin="0,0,0,10"
+                              SelectionMode="Multiple">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox Content="{Binding Name}" 
+                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <!-- Product Images -->
+                        <TextBlock Text="Imagini produs:" FontWeight="Bold" Margin="0,10,0,5"/>
+                        <ListView ItemsSource="{Binding ProductImages}" 
+                              Height="100" Margin="0,0,0,10">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding ImagePath}" Margin="0,0,10,0"
+                                               VerticalAlignment="Center"/>
+                                        <Button Content="❌" 
+                                            Style="{StaticResource ButtonStyle}"
+                                            Background="Transparent"
+                                            Foreground="Red"
+                                            Command="{Binding DataContext.RemoveImageCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                            CommandParameter="{Binding}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <!-- Add Image -->
+                        <Button Content="Adaugă imagine" 
+                            Command="{Binding AddImageCommand}"
+                            Style="{StaticResource ButtonStyle}"
+                            HorizontalAlignment="Left"
+                            Margin="0,0,0,10"/>
+
+                        <!-- Action Buttons -->
+                        <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                            <Button Content="Salvează" 
+                                Command="{Binding SaveProductCommand}" 
+                                Style="{StaticResource ButtonStyle}" 
+                                Width="120"/>
+
+                            <Button Content="Anulează" 
+                                Command="{Binding CancelEditCommand}" 
+                                Style="{StaticResource ButtonStyle}" 
+                                Background="#FF666666" 
+                                Width="120"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="#FFF5F5F5" Padding="10">
+            <TextBlock Text="{Binding StatusMessage}" Foreground="#FF666666"/>
+        </Border>
+
+        <!-- Loading Overlay -->
+        <Border Grid.RowSpan="3" Background="#80000000" 
+                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="Se încarcă..." Foreground="White" FontSize="24" Margin="0,0,0,10"/>
+                <ProgressBar IsIndeterminate="True" Width="200" Height="10"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>
