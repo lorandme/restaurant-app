@@ -57,10 +57,9 @@ namespace restaurant_app.Services
                 _dalContext = new RestaurantDALContext(optionsBuilder.Options);
 
                 // Inițializăm serviciile
-                ConfigService = new ConfigService(_dbContext);
-                // Nu mai facem apel blocant aici
-                // ConfigService.LoadConfigAsync().Wait(); 
 
+                // Inițializăm serviciile
+                ConfigService = new ConfigService(_dbContext);
                 AuthService = new AuthService(_dbContext);
                 MenuService = new MenuService(_dalContext, ConfigService);
                 OrderService = new OrderService(_dalContext, ConfigService, AuthService);

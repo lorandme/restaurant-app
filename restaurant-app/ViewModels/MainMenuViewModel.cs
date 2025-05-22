@@ -90,7 +90,12 @@ namespace restaurant_app.ViewModels
         }
 
         // Auth Properties
-        public bool IsUserLoggedIn => _authService.IsLoggedIn;
+        private bool _isUserLoggedIn;
+        public bool IsUserLoggedIn
+        {
+            get => _isUserLoggedIn;
+            set => SetProperty(ref _isUserLoggedIn, value);
+        }
         public bool IsUserEmployee => _authService.IsEmployee;
         public bool IsUserClient => _authService.IsClient;
         public string LoggedInUsername => IsUserLoggedIn ? _authService.CurrentUser?.Username : "Vizitator";
@@ -110,6 +115,7 @@ namespace restaurant_app.ViewModels
         {
             _menuService = menuService ?? throw new ArgumentNullException(nameof(menuService));
             _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+            _isUserLoggedIn = _authService.IsLoggedIn;
 
             // Initialize commands
             SearchByKeywordCommand = new RelayCommand(async _ => await ExecuteSearchByKeywordAsync(), _ => !string.IsNullOrWhiteSpace(SearchKeyword));
@@ -260,10 +266,13 @@ namespace restaurant_app.ViewModels
         private void ExecuteLogin()
         {
             var loginWindow = new LoginPage();
+            loginWindow.Owner = Application.Current.MainWindow; // Set the owner
             loginWindow.ShowDialog();
 
-            // Update UI after login
-            OnPropertyChanged(nameof(IsUserLoggedIn));
+            // Update IsUserLoggedIn property after login attempt
+            IsUserLoggedIn = _authService.IsLoggedIn;
+
+            // Update other UI properties
             OnPropertyChanged(nameof(IsUserClient));
             OnPropertyChanged(nameof(IsUserEmployee));
             OnPropertyChanged(nameof(LoggedInUsername));
@@ -273,8 +282,10 @@ namespace restaurant_app.ViewModels
         {
             _authService.Logout();
 
-            // Update UI after logout
-            OnPropertyChanged(nameof(IsUserLoggedIn));
+            // Update IsUserLoggedIn property after logout
+            IsUserLoggedIn = _authService.IsLoggedIn;
+
+            // Update other UI properties
             OnPropertyChanged(nameof(IsUserClient));
             OnPropertyChanged(nameof(IsUserEmployee));
             OnPropertyChanged(nameof(LoggedInUsername));

@@ -43,6 +43,7 @@
                             Padding="10,5" 
                             Visibility="{Binding IsUserLoggedIn, Converter={StaticResource BoolToVis}, ConverterParameter=False}"/>
 
+
                     <Button Content="Deconectare" 
                             Command="{Binding LogoutCommand}"
                             Margin="5"

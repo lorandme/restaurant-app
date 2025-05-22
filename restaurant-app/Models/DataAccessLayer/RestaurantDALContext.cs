@@ -14,12 +14,36 @@ namespace restaurant_app.Models.DataAccessLayer
         {
         }
 
+        // Define DbSet properties for your query result models
+        public DbSet<ProductWithCategoryAndAllergens> ProductsWithCategoryAndAllergens { get; set; }
+        public DbSet<MenuWithProducts> MenusWithProducts { get; set; }
+        public DbSet<ProductLowStock> ProductsLowStock { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            // Call the base OnModelCreating to include all the entity configurations from RestaurantDbContext
+            base.OnModelCreating(modelBuilder);
+
+            // Configure the query result entities - mark them as having no key since they're just for queries
+            modelBuilder.Entity<ProductWithCategoryAndAllergens>()
+                .HasNoKey()
+                .ToView("ProductWithCategoryAndAllergens"); // This is a view name, not a physical table
+
+            modelBuilder.Entity<MenuWithProducts>()
+                .HasNoKey()
+                .ToView("MenuWithProducts");
+
+            modelBuilder.Entity<ProductLowStock>()
+                .HasNoKey()
+                .ToView("ProductLowStock");
+        }
+
         /// <summary>
         /// Gets all available products with their categories and allergens using the GetAvailableProducts stored procedure
         /// </summary>
         public async Task<List<ProductWithCategoryAndAllergens>> GetAvailableProductsAsync()
         {
-            return await Set<ProductWithCategoryAndAllergens>()
+            return await ProductsWithCategoryAndAllergens
                 .FromSqlRaw("EXEC GetAvailableProducts")
                 .ToListAsync();
         }
@@ -29,7 +53,7 @@ namespace restaurant_app.Models.DataAccessLayer
         /// </summary>
         public async Task<List<MenuWithProducts>> GetAvailableMenusAsync()
         {
-            return await Set<MenuWithProducts>()
+            return await MenusWithProducts
                 .FromSqlRaw("EXEC GetAvailableMenus")
                 .ToListAsync();
         }
@@ -41,11 +65,12 @@ namespace restaurant_app.Models.DataAccessLayer
         public async Task<List<ProductLowStock>> GetLowStockProductsAsync(decimal threshold)
         {
             var param = new SqlParameter("@Threshold", threshold);
-            return await Set<ProductLowStock>()
+            return await ProductsLowStock
                 .FromSqlRaw("EXEC GetLowStockProducts @Threshold", param)
                 .ToListAsync();
         }
 
+        // All other methods remain the same...
         /// <summary>
         /// Creates a new order using the CreateOrder stored procedure
         /// </summary>
