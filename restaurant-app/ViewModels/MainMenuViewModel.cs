@@ -289,17 +289,37 @@ namespace restaurant_app.ViewModels
                 return;
             }
 
-            // Open admin dashboard
-            var adminPage = new AdminDashboardPage();
-            var window = new Window
+            try
             {
-                Content = adminPage,
-                Title = "Administrare Restaurant",
-                Width = 1000,
-                Height = 700
-            };
-            window.Show();
+                // Get required services from ServiceLocator
+                var menuService = ServiceLocator.Instance.MenuService;
+                var orderService = ServiceLocator.Instance.OrderService;
+                var configService = ServiceLocator.Instance.ConfigService;
+
+                // Create and initialize the AdminDashboardViewModel
+                var adminViewModel = new AdminDashboardViewModel(
+                    menuService,
+                    orderService,
+                    configService);
+
+                // Create and show the admin dashboard window
+                var adminWindow = new AdminDashboardWindow
+                {
+                    DataContext = adminViewModel,
+                    Title = "Administrare Restaurant",
+                    Width = 1000,
+                    Height = 700
+                };
+
+                adminWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Eroare la deschiderea panoului de administrare: {ex.Message}", "Eroare",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
+
 
         private void FilterProductsByCategory(Category category)
         {

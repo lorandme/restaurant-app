@@ -223,5 +223,167 @@ namespace restaurant_app.Services
         {
             return await _context.Allergens.ToListAsync();
         }
+
+        // --- MENU METHODS ---
+        public async Task<bool> AddMenuAsync(Menu menu)
+        {
+            try
+            {
+                if (menu == null) throw new ArgumentNullException(nameof(menu));
+                _context.Menus.Add(menu);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error adding menu: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> UpdateMenuAsync(Menu menu)
+        {
+            try
+            {
+                if (menu == null) throw new ArgumentNullException(nameof(menu));
+                var existingMenu = await _context.Menus.FindAsync(menu.MenuId);
+                if (existingMenu == null) return false;
+
+                existingMenu.CategoryId = menu.CategoryId;
+                // Update other properties as needed
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error updating menu: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> DeleteMenuAsync(int menuId)
+        {
+            try
+            {
+                var menu = await _context.Menus.FindAsync(menuId);
+                if (menu == null) return false;
+                _context.Menus.Remove(menu);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting menu: {ex.Message}");
+                return false;
+            }
+        }
+
+        // --- CATEGORY METHODS ---
+        public async Task<bool> AddCategoryAsync(Category category)
+        {
+            try
+            {
+                if (category == null) throw new ArgumentNullException(nameof(category));
+                _context.Categories.Add(category);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error adding category: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> UpdateCategoryAsync(Category category)
+        {
+            try
+            {
+                if (category == null) throw new ArgumentNullException(nameof(category));
+                var existingCategory = await _context.Categories.FindAsync(category.CategoryId);
+                if (existingCategory == null) return false;
+
+                existingCategory.Name = category.Name;
+                existingCategory.Description = category.Description;
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error updating category: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> DeleteCategoryAsync(int categoryId)
+        {
+            try
+            {
+                var category = await _context.Categories.FindAsync(categoryId);
+                if (category == null) return false;
+                _context.Categories.Remove(category);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting category: {ex.Message}");
+                return false;
+            }
+        }
+
+        // --- ALLERGEN METHODS ---
+        public async Task<bool> AddAllergenAsync(Allergen allergen)
+        {
+            try
+            {
+                if (allergen == null) throw new ArgumentNullException(nameof(allergen));
+                _context.Allergens.Add(allergen);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error adding allergen: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> UpdateAllergenAsync(Allergen allergen)
+        {
+            try
+            {
+                if (allergen == null) throw new ArgumentNullException(nameof(allergen));
+                var existingAllergen = await _context.Allergens.FindAsync(allergen.AllergenId);
+                if (existingAllergen == null) return false;
+
+                existingAllergen.Name = allergen.Name;
+                existingAllergen.Description = allergen.Description;
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error updating allergen: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> DeleteAllergenAsync(int allergenId)
+        {
+            try
+            {
+                var allergen = await _context.Allergens.FindAsync(allergenId);
+                if (allergen == null) return false;
+                _context.Allergens.Remove(allergen);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting allergen: {ex.Message}");
+                return false;
+            }
+        }
     }
 }

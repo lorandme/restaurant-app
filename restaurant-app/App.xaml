@@ -4,6 +4,6 @@
              xmlns:local="clr-namespace:restaurant_app"
              StartupUri="Views/MainWindow.xaml">
     <Application.Resources>
-        <!-- Resurse globale aici dacă este cazul -->
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </Application.Resources>
 </Application>
