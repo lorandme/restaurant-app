@@ -4,16 +4,19 @@ using restaurant_app.ViewModels;
 
 namespace restaurant_app.Views
 {
-    public partial class LoginPage : Window
+    public partial class RegisterPage : Window
     {
-        public LoginPage()
+        public RegisterPage()
         {
             InitializeComponent();
 
             try
             {
-                // Setăm ViewModel-ul
-                var viewModel = new LoginViewModel();
+                // Obținem AuthService din ServiceLocator
+                var authService = ServiceLocator.Instance.AuthService;
+
+                // Creăm și setăm ViewModel-ul
+                var viewModel = new RegisterViewModel(authService);
                 DataContext = viewModel;
             }
             catch (System.Exception ex)

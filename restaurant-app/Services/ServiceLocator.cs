@@ -76,12 +76,20 @@ namespace restaurant_app.Services
         {
             try
             {
-                // Încărcăm configurările asincron
+                // Verifică dacă ConfigService este inițializat
+                if (ConfigService == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("ConfigService is not initialized!");
+                    return;
+                }
+
+                // Încarcă configurările asincron
                 await ConfigService.LoadConfigAsync();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error loading configuration: {ex.Message}");
+                throw; // Re-throw exception to be caught by the caller
             }
         }
 

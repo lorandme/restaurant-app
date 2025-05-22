@@ -1,18 +1,13 @@
 ﻿using System;
 using System.Windows;
-using System.Windows.Controls;
 using restaurant_app.Services;
 using restaurant_app.ViewModels;
 
 namespace restaurant_app.Views
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
     public partial class MainWindow : Window
     {
         private MainMenuViewModel _viewModel;
-        private Frame _mainFrame;
 
         public MainWindow()
         {
@@ -20,30 +15,24 @@ namespace restaurant_app.Views
 
             try
             {
-                // Create a Frame for navigation
-                _mainFrame = new Frame();
-
-                // Initialize ServiceLocator
+                // Inițializăm serviciile
                 var serviceLocator = ServiceLocator.Instance;
 
-                // Initialize NavigationService with the Frame
-                serviceLocator.InitializeNavigationService(_mainFrame);
-
-                // Now create and set the ViewModel with the initialized NavigationService
+                // Creăm ViewModel-ul
                 _viewModel = new MainMenuViewModel(
                     serviceLocator.MenuService,
                     serviceLocator.AuthService,
                     serviceLocator.NavigationService);
 
-                // Set the DataContext for data binding
+                // Setăm DataContext
                 DataContext = _viewModel;
 
-                // Start loading data when the window is shown
+                // Încărcăm datele când fereastra este încărcată
                 Loaded += OnWindowLoaded;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error initializing window: {ex.Message}", "Initialization Error",
+                MessageBox.Show($"Eroare: {ex.Message}", "Eroare",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -52,16 +41,14 @@ namespace restaurant_app.Views
         {
             try
             {
-                // Load configuration first, then load data
+                // Încărcăm configurația și datele
                 await ServiceLocator.Instance.InitializeConfigurationAsync();
-
-                // Ensure data is loaded when the window is shown
                 await _viewModel.LoadDataAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error loading data: {ex.Message}", "Error",
-                                MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Eroare: {ex.Message}", "Eroare",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

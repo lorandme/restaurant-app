@@ -9,15 +9,13 @@ using restaurant_app.Views;
 
 namespace restaurant_app.ViewModels
 {
-    public class LoginViewModel : ViewModelBase
+    public class RegisterViewModel : ViewModelBase
     {
         private readonly AuthService _authService;
 
         private string _username = string.Empty;
         private string _statusMessage = string.Empty;
         private bool _isProcessing;
-
-        public Action LoginSuccessfulCallback { get; set; }
 
         public string Username
         {
@@ -37,21 +35,21 @@ namespace restaurant_app.ViewModels
             set => SetProperty(ref _isProcessing, value);
         }
 
-        public ICommand LoginCommand { get; }
-        public ICommand NavigateToRegisterCommand { get; }
+        public ICommand RegisterCommand { get; }
+        public ICommand NavigateToLoginCommand { get; }
         public ICommand NavigateBackCommand { get; }
 
         // Constructor simplu
-        public LoginViewModel()
+        public RegisterViewModel(AuthService authService)
         {
-            _authService = ServiceLocator.Instance.AuthService;
+            _authService = authService;
 
-            LoginCommand = new RelayCommand(async param => await ExecuteLoginAsync(param as PasswordBox), CanLogin);
-            NavigateToRegisterCommand = new RelayCommand(_ => ExecuteNavigateToRegister());
+            RegisterCommand = new RelayCommand(async param => await ExecuteRegisterAsync(param as PasswordBox), CanRegister);
+            NavigateToLoginCommand = new RelayCommand(_ => ExecuteNavigateToLogin());
             NavigateBackCommand = new RelayCommand(_ => ExecuteNavigateBack());
         }
 
-        private bool CanLogin(object parameter)
+        private bool CanRegister(object parameter)
         {
             var passwordBox = parameter as PasswordBox;
             return !IsProcessing &&
@@ -60,7 +58,7 @@ namespace restaurant_app.ViewModels
                    !string.IsNullOrWhiteSpace(passwordBox.Password);
         }
 
-        private async Task ExecuteLoginAsync(PasswordBox passwordBox)
+        private async Task ExecuteRegisterAsync(PasswordBox passwordBox)
         {
             if (passwordBox == null)
                 return;
@@ -70,21 +68,27 @@ namespace restaurant_app.ViewModels
                 IsProcessing = true;
                 StatusMessage = string.Empty;
 
-                bool result = await _authService.LoginAsync(Username, passwordBox.Password);
+                System.Diagnostics.Debug.WriteLine($"Încercare înregistrare pentru: {Username}");
 
-                if (result)
+                var result = await _authService.RegisterAsync(
+                    Username,
+                    passwordBox.Password);
+
+                if (result.Success)
                 {
-                    // Executăm callback-ul dacă există
-                    LoginSuccessfulCallback?.Invoke();
+                    MessageBox.Show("Înregistrare reușită! Acum vă puteți autentifica.",
+                        "Înregistrare completă",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
 
-                    // Închidem fereastra de login
-                    CloseWindow();
+                    ExecuteNavigateToLogin();
                 }
                 else
                 {
-                    StatusMessage = "Nume utilizator sau parolă incorecte.";
+                    StatusMessage = result.Message;
                     // Asigurăm actualizarea UI
                     OnPropertyChanged(nameof(StatusMessage));
+                    System.Diagnostics.Debug.WriteLine($"Eroare înregistrare: {result.Message}");
                 }
             }
             catch (Exception ex)
@@ -92,6 +96,7 @@ namespace restaurant_app.ViewModels
                 StatusMessage = $"Eroare: {ex.Message}";
                 // Asigurăm actualizarea UI
                 OnPropertyChanged(nameof(StatusMessage));
+                System.Diagnostics.Debug.WriteLine($"Excepție: {ex.Message}");
             }
             finally
             {
@@ -99,10 +104,10 @@ namespace restaurant_app.ViewModels
             }
         }
 
-        private void ExecuteNavigateToRegister()
+        private void ExecuteNavigateToLogin()
         {
-            var registerWindow = new RegisterPage();
-            registerWindow.Show();
+            var loginWindow = new LoginPage();
+            loginWindow.Show();
             CloseWindow();
         }
 
@@ -113,10 +118,10 @@ namespace restaurant_app.ViewModels
 
         private void CloseWindow()
         {
-            // Căutăm fereastra LoginPage și o închidem
+            // Căutăm fereastra RegisterPage și o închidem
             foreach (Window window in Application.Current.Windows)
             {
-                if (window is LoginPage)
+                if (window is RegisterPage)
                 {
                     window.Close();
                     break;

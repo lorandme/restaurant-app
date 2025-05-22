@@ -24,12 +24,12 @@ namespace restaurant_app.Services
             _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         }
 
-        public async Task<bool> LoginAsync(string email, string password)
+        public async Task<bool> LoginAsync(string username, string password)
         {
             try
             {
                 var user = await _dbContext.Users
-                    .FirstOrDefaultAsync(u => u.Email == email);
+                    .FirstOrDefaultAsync(u => u.Username == username);
 
                 if (user == null)
                     return false;
@@ -50,28 +50,28 @@ namespace restaurant_app.Services
         }
 
         public async Task<(bool Success, string Message)> RegisterAsync(
-            string firstName, string lastName, string email,
-            string password, string phoneNumber, string address)
+    string username, string password)
         {
             try
             {
-                // Verificăm dacă există deja un utilizator cu acest email
+                // Verificăm dacă există deja un utilizator cu acest username
                 var existingUser = await _dbContext.Users
-                    .FirstOrDefaultAsync(u => u.Email == email);
+                    .FirstOrDefaultAsync(u => u.Username == username);
 
                 if (existingUser != null)
-                    return (false, "Există deja un cont cu acest email.");
+                    return (false, "Există deja un cont cu acest nume de utilizator.");
 
                 // Creăm un nou utilizator
                 var newUser = new User
                 {
-                    FirstName = firstName,
-                    LastName = lastName,
-                    Email = email,
+                    Username = username,
                     PasswordHash = HashPassword(password),
-                    PhoneNumber = phoneNumber,
-                    DeliveryAddress = address,
-                    UserType = "Client" // Utilizatorii noi sunt întotdeauna clienți
+                    UserType = "Client", // Utilizatorii noi sunt întotdeauna clienți
+                    Email = null, // Null instead of empty string
+                    FirstName = null,
+                    LastName = null,
+                    PhoneNumber = null,
+                    DeliveryAddress = null
                 };
 
                 _dbContext.Users.Add(newUser);
