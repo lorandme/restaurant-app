@@ -9,7 +9,9 @@
     public int CategoryID { get; set; }
     public string CategoryName { get; set; }
     public string Allergens { get; set; }
+    public bool? DatabaseIsAvailable { get; set; }
 }
+
 
 public class MenuWithProducts
 {

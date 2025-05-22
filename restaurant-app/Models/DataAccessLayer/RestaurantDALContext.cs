@@ -43,26 +43,40 @@ namespace restaurant_app.Models.DataAccessLayer
         /// <summary>
         /// Gets all available products with their categories and allergens using the GetAvailableProducts stored procedure
         /// </summary>
+        // Make this change in your RestaurantDALContext.cs
         public async Task<List<ProductWithCategoryAndAllergens>> GetAvailableProductsAsync()
         {
             try
             {
                 // Add debug logging
-                Console.WriteLine("Fetching products from database...");
+                Console.WriteLine("Fetching products from database using stored procedure...");
+
+                // Check if we can use the stored procedure
                 var products = await ProductsWithCategoryAndAllergens
                     .FromSqlRaw("EXEC GetAvailableProducts")
                     .ToListAsync();
 
-                Console.WriteLine($"Found {products.Count} products");
+                Console.WriteLine($"Found {products.Count} products from stored procedure");
+
+                // If stored procedure doesn't return DatabaseIsAvailable, try to use direct SQL query
+                if (products.Count > 0 && products.All(p => p.DatabaseIsAvailable == null))
+                {
+                    Console.WriteLine("DatabaseIsAvailable not found in stored procedure results. Trying direct SQL...");
+                    products = await GetProductsDirectSqlAsync();
+                }
+
                 return products;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error fetching products: {ex.Message}");
                 Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                return new List<ProductWithCategoryAndAllergens>();
+                // Fallback to direct SQL if stored procedure fails
+                Console.WriteLine("Falling back to direct SQL...");
+                return await GetProductsDirectSqlAsync();
             }
         }
+
 
         /// <summary>
         /// Gets all available menus with their products using the GetAvailableMenus stored procedure
@@ -237,7 +251,7 @@ namespace restaurant_app.Models.DataAccessLayer
         {
             try
             {
-                Console.WriteLine("Executing direct SQL query for products...");
+                Console.WriteLine("Executing direct SQL query for products with allergens...");
 
                 string sqlQuery = @"
             SELECT 
@@ -249,12 +263,16 @@ namespace restaurant_app.Models.DataAccessLayer
                 p.TotalQuantity, 
                 p.CategoryId AS CategoryID, 
                 c.Name AS CategoryName,
-                '' AS Allergens  -- We'll simplify this for now
+                STUFF((
+                    SELECT ', ' + a.Name
+                    FROM ProductAllergens pa
+                    JOIN Allergens a ON pa.AllergenId = a.AllergenId
+                    WHERE pa.ProductId = p.ProductId
+                    FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS Allergens,
+                p.IsAvailable AS DatabaseIsAvailable
             FROM Products p
-            JOIN Categories c ON p.CategoryId = c.CategoryId
-            WHERE p.IsAvailable = 1 OR p.IsAvailable IS NULL";
+            JOIN Categories c ON p.CategoryId = c.CategoryId";
 
-                // Option 1: Using FromSqlRaw with the DbSet
                 var products = await ProductsWithCategoryAndAllergens
                     .FromSqlRaw(sqlQuery)
                     .ToListAsync();
@@ -266,17 +284,8 @@ namespace restaurant_app.Models.DataAccessLayer
                 {
                     foreach (var p in products.Take(3))
                     {
-                        Console.WriteLine($"  - Product: {p.ProductID}, {p.ProductName}, {p.Price}");
+                        Console.WriteLine($"  - Product: {p.ProductID}, {p.ProductName}, Allergens: {p.Allergens}");
                     }
-                }
-                else
-                {
-                    Console.WriteLine("No products found with direct SQL query!");
-
-                    // Let's try a simpler query to confirm if products table has data
-                    var countQuery = "SELECT COUNT(*) FROM Products";
-                    var count = await Database.ExecuteSqlRawAsync(countQuery);
-                    Console.WriteLine($"Product count in database: {count}");
                 }
 
                 return products;
@@ -289,7 +298,7 @@ namespace restaurant_app.Models.DataAccessLayer
                 // Option 2: If Option 1 fails, try manual mapping approach
                 try
                 {
-                    Console.WriteLine("Attempting alternative SQL approach...");
+                    Console.WriteLine("Attempting alternative SQL approach with allergens...");
                     var products = new List<ProductWithCategoryAndAllergens>();
 
                     using (var command = Database.GetDbConnection().CreateCommand())
@@ -303,7 +312,14 @@ namespace restaurant_app.Models.DataAccessLayer
                         p.PortionUnit, 
                         p.TotalQuantity, 
                         p.CategoryId, 
-                        c.Name AS CategoryName
+                        c.Name AS CategoryName,
+                        (
+                            SELECT STRING_AGG(a.Name, ', ')
+                            FROM ProductAllergens pa
+                            JOIN Allergens a ON pa.AllergenId = a.AllergenId
+                            WHERE pa.ProductId = p.ProductId
+                        ) AS Allergens,
+                        p.IsAvailable
                     FROM Products p
                     JOIN Categories c ON p.CategoryId = c.CategoryId";
 
@@ -326,13 +342,14 @@ namespace restaurant_app.Models.DataAccessLayer
                                     TotalQuantity = reader.GetDecimal(5),
                                     CategoryID = reader.GetInt32(6),
                                     CategoryName = reader.GetString(7),
-                                    Allergens = string.Empty
+                                    Allergens = reader.IsDBNull(8) ? string.Empty : reader.GetString(8),
+                                    DatabaseIsAvailable = reader.IsDBNull(9) ? null : (bool?)reader.GetBoolean(9)
                                 });
                             }
                         }
                     }
 
-                    Console.WriteLine($"Alternative query found {products.Count} products");
+                    Console.WriteLine($"Alternative query found {products.Count} products with allergens");
                     return products;
                 }
                 catch (Exception ex2)
@@ -342,6 +359,7 @@ namespace restaurant_app.Models.DataAccessLayer
                 }
             }
         }
+
 
 
 

@@ -223,7 +223,8 @@
                                                                 <TextBlock Text="Indisponibil" 
                                                                            Foreground="Red" 
                                                                            FontWeight="Bold"
-                                                                           Visibility="{Binding IsAvailable, Converter={StaticResource BoolToVis}, ConverterParameter=False}"/>
+                                                                           Visibility="{Binding IsAvailable, Converter={StaticResource InvertedBoolToVis}}"/>
+
                                                             </StackPanel>
 
                                                             <!-- Allergens -->
@@ -336,9 +337,10 @@
                                                 </TextBlock>
                                                 <TextBlock Text="{Binding Price, StringFormat={}{0:C}}"/>
                                                 <TextBlock Text="Indisponibil" 
-                                                           Foreground="Red" 
-                                                           FontWeight="Bold"
-                                                           Visibility="{Binding IsAvailable, Converter={StaticResource BoolToVis}, ConverterParameter=False}"/>
+                                                                 Foreground="Red" 
+                                                                 FontWeight="Bold"
+                                                                 Visibility="{Binding IsAvailable, Converter={StaticResource InvertedBoolToVis}}"/>
+
                                             </StackPanel>
 
                                             <!-- Allergens -->

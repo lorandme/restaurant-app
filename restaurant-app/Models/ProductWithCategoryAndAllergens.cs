@@ -16,12 +16,13 @@ namespace restaurant_app.Models
         public int CategoryID { get; set; }
         public string CategoryName { get; set; }
         public string Allergens { get; set; }
+        public bool? DatabaseIsAvailable { get; set; }
 
         // Property to determine if the product is available
-        public bool IsAvailable => TotalQuantity > 0;
+        public bool IsAvailable => (DatabaseIsAvailable ?? true) && TotalQuantity > 0;
 
         // Display text for availability status
-        public string AvailabilityStatus => IsAvailable ? "" : "Indisponibil";
+        public string AvailabilityStatus => IsAvailable ? "Disponibil" : "Indisponibil";
 
         // Full description for portion display
         public string PortionDescription => $"{PortionQuantity} {PortionUnit}";
@@ -55,5 +56,4 @@ namespace restaurant_app.Models
             return ProductName.Contains(keyword, StringComparison.OrdinalIgnoreCase);
         }
     }
-
 }

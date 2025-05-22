@@ -726,8 +726,7 @@ namespace restaurant_app.ViewModels
         // --- Product CRUD methods ---
         private async void AddProduct()
         {
-            // For a proper implementation, you should create a custom dialog
-            // This is a simplified version
+            // Basic product information
             var name = PromptForInput("Introduceți numele produsului:");
             if (string.IsNullOrWhiteSpace(name)) return;
 
@@ -743,15 +742,53 @@ namespace restaurant_app.ViewModels
             var totalQuantityStr = PromptForInput("Introduceți cantitatea totală în stoc:");
             if (!decimal.TryParse(totalQuantityStr, out decimal totalQuantity)) return;
 
-            // Select category
+            // Load categories if needed
             if (Categories.Count == 0)
+                await LoadCategories();
+
+            // Select category using a simple dialog
+            string categoryOptions = string.Join(Environment.NewLine,
+                Categories.Select(c => $"{c.CategoryId}: {c.Name}"));
+
+            var categoryIdStr = PromptForInput(
+                $"Selectați ID-ul categoriei:\n{categoryOptions}",
+                Categories.FirstOrDefault()?.CategoryId.ToString() ?? "1");
+
+            if (!int.TryParse(categoryIdStr, out int categoryId) ||
+                !Categories.Any(c => c.CategoryId == categoryId))
             {
-                StatusMessage = "Nu există categorii. Creați mai întâi o categorie.";
+                StatusMessage = "Categorie invalidă selectată!";
                 return;
             }
 
-            // In a real app, you would show a dropdown to select the category
-            int categoryId = SelectedCategory?.CategoryId ?? Categories.First().CategoryId;
+            // Load allergens if needed
+            if (Allergens.Count == 0)
+                await LoadAllergens();
+
+            // Select allergens using a simple multi-select approach
+            List<int> selectedAllergenIds = new List<int>();
+
+            if (Allergens.Count > 0)
+            {
+                string allergenOptions = string.Join(Environment.NewLine,
+                    Allergens.Select(a => $"{a.AllergenId}: {a.Name}"));
+
+                var allergenSelectionStr = PromptForInput(
+                    $"Introduceți ID-urile alergenilor separați prin virgulă (opțional):\n{allergenOptions}");
+
+                if (!string.IsNullOrWhiteSpace(allergenSelectionStr))
+                {
+                    var allergenIdStrings = allergenSelectionStr.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var idStr in allergenIdStrings)
+                    {
+                        if (int.TryParse(idStr.Trim(), out int allergenId) &&
+                            Allergens.Any(a => a.AllergenId == allergenId))
+                        {
+                            selectedAllergenIds.Add(allergenId);
+                        }
+                    }
+                }
+            }
 
             var product = new Product
             {
@@ -767,7 +804,7 @@ namespace restaurant_app.ViewModels
             try
             {
                 IsLoading = true;
-                var result = await _menuService.AddProductAsync(product, new List<int>(), new List<string>());
+                var result = await _menuService.AddProductAsync(product, selectedAllergenIds, new List<string>());
 
                 if (result)
                 {
@@ -789,11 +826,12 @@ namespace restaurant_app.ViewModels
             }
         }
 
+
         private async void EditProduct()
         {
             if (SelectedProduct == null) return;
 
-            // In a real app, this would be handled with a dialog form
+            // Basic product information
             var name = PromptForInput("Editați numele produsului:", SelectedProduct.ProductName);
             if (string.IsNullOrWhiteSpace(name)) return;
 
@@ -812,6 +850,69 @@ namespace restaurant_app.ViewModels
                 SelectedProduct.TotalQuantity.ToString());
             if (!decimal.TryParse(totalQuantityStr, out decimal totalQuantity)) return;
 
+            // Load categories if needed
+            if (Categories.Count == 0)
+                await LoadCategories();
+
+            // Select category using a simple dialog
+            string categoryOptions = string.Join(Environment.NewLine,
+                Categories.Select(c => $"{c.CategoryId}: {c.Name}"));
+
+            var categoryIdStr = PromptForInput(
+                $"Selectați ID-ul categoriei:\n{categoryOptions}",
+                SelectedProduct.CategoryID.ToString());
+
+            if (!int.TryParse(categoryIdStr, out int categoryId) ||
+                !Categories.Any(c => c.CategoryId == categoryId))
+            {
+                StatusMessage = "Categorie invalidă selectată!";
+                return;
+            }
+
+            // Load allergens if needed
+            if (Allergens.Count == 0)
+                await LoadAllergens();
+
+            // Extract current allergen IDs from the product (if possible)
+            string currentAllergens = SelectedProduct.Allergens ?? "";
+
+            // Select allergens using a simple multi-select approach
+            List<int> selectedAllergenIds = new List<int>();
+
+            if (Allergens.Count > 0)
+            {
+                string allergenOptions = string.Join(Environment.NewLine,
+                    Allergens.Select(a => $"{a.AllergenId}: {a.Name}"));
+
+                string defaultSelection = "";
+                // Try to pre-populate with existing selections if possible
+                if (!string.IsNullOrEmpty(currentAllergens))
+                {
+                    var matchingAllergens = Allergens
+                        .Where(a => currentAllergens.Contains(a.Name, StringComparison.OrdinalIgnoreCase))
+                        .Select(a => a.AllergenId.ToString());
+
+                    defaultSelection = string.Join(",", matchingAllergens);
+                }
+
+                var allergenSelectionStr = PromptForInput(
+                    $"Introduceți ID-urile alergenilor separați prin virgulă (opțional):\n{allergenOptions}",
+                    defaultSelection);
+
+                if (!string.IsNullOrWhiteSpace(allergenSelectionStr))
+                {
+                    var allergenIdStrings = allergenSelectionStr.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var idStr in allergenIdStrings)
+                    {
+                        if (int.TryParse(idStr.Trim(), out int allergenId) &&
+                            Allergens.Any(a => a.AllergenId == allergenId))
+                        {
+                            selectedAllergenIds.Add(allergenId);
+                        }
+                    }
+                }
+            }
+
             var product = new Product
             {
                 ProductId = SelectedProduct.ProductID,
@@ -820,14 +921,14 @@ namespace restaurant_app.ViewModels
                 PortionQuantity = portionQuantity,
                 PortionUnit = portionUnit,
                 TotalQuantity = totalQuantity,
-                CategoryId = SelectedProduct.CategoryID,
+                CategoryId = categoryId,
                 IsAvailable = true
             };
 
             try
             {
                 IsLoading = true;
-                var result = await _menuService.UpdateProductAsync(product, new List<int>(), new List<string>());
+                var result = await _menuService.UpdateProductAsync(product, selectedAllergenIds, new List<string>());
 
                 if (result)
                 {
@@ -848,6 +949,7 @@ namespace restaurant_app.ViewModels
                 IsLoading = false;
             }
         }
+
 
         private async void DeleteProduct()
         {
@@ -1176,6 +1278,8 @@ namespace restaurant_app.ViewModels
         }
 
         #endregion
+
+
     }
 }
 
