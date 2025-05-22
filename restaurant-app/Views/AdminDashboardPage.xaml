@@ -78,19 +78,6 @@
                        FontSize="22" FontWeight="Bold" 
                        VerticalAlignment="Center"
                        Foreground="White"/>
-
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <Button Content="Înapoi la Meniu Principal" 
-                        Command="{Binding NavigateToMainMenuCommand}"
-                        Style="{StaticResource ButtonStyle}"
-                        Padding="10,5" MinHeight="30" FontSize="12"/>
-
-                    <Button Content="Deconectare" 
-                        Command="{Binding LogoutCommand}"
-                        Style="{StaticResource ButtonStyle}"
-                        Background="#FFCC0000"
-                        Padding="10,5" MinHeight="30" FontSize="12"/>
-                </StackPanel>
             </Grid>
         </Border>
 

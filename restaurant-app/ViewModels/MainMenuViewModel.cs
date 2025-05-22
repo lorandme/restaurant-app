@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -14,12 +16,15 @@ namespace restaurant_app.ViewModels
     {
         private readonly MenuService _menuService;
         private readonly AuthService _authService;
+        private readonly NavigationService _navigationService;
 
         // Collections
         private ObservableCollection<Models.ProductWithCategoryAndAllergens> _products = new ObservableCollection<Models.ProductWithCategoryAndAllergens>();
         private ObservableCollection<MenuWithProducts> _menus = new ObservableCollection<MenuWithProducts>();
         private ObservableCollection<Category> _categories = new ObservableCollection<Category>();
         private ObservableCollection<Models.ProductWithCategoryAndAllergens> _searchResults = new ObservableCollection<Models.ProductWithCategoryAndAllergens>();
+        // Update the type declaration to use fully qualified namespace for ProductWithCategoryAndAllergens
+        private Dictionary<string, List<restaurant_app.Models.ProductWithCategoryAndAllergens>> _categorizedProducts;
 
         // UI Properties
         private bool _isLoading;
@@ -28,6 +33,8 @@ namespace restaurant_app.ViewModels
         private string _searchKeyword = string.Empty;
         private string _searchAllergen = string.Empty;
         private bool _excludeAllergen;
+        private Category _selectedCategory;
+        private int _cartItemCount = 0;
 
         public ObservableCollection<Models.ProductWithCategoryAndAllergens> Products
         {
@@ -45,6 +52,12 @@ namespace restaurant_app.ViewModels
         {
             get => _categories;
             set => SetProperty(ref _categories, value);
+        }
+
+        public Dictionary<string, List<restaurant_app.Models.ProductWithCategoryAndAllergens>> CategorizedProducts
+        {
+            get => _categorizedProducts;
+            set => SetProperty(ref _categorizedProducts, value);
         }
 
         public bool IsLoading
@@ -89,6 +102,24 @@ namespace restaurant_app.ViewModels
             set => SetProperty(ref _excludeAllergen, value);
         }
 
+        public Category SelectedCategory
+        {
+            get => _selectedCategory;
+            set
+            {
+                if (SetProperty(ref _selectedCategory, value) && value != null)
+                {
+                    FilterProductsByCategory(value);
+                }
+            }
+        }
+
+        public int CartItemCount
+        {
+            get => _cartItemCount;
+            set => SetProperty(ref _cartItemCount, value);
+        }
+
         // Auth Properties
         private bool _isUserLoggedIn;
         public bool IsUserLoggedIn
@@ -98,7 +129,6 @@ namespace restaurant_app.ViewModels
         }
         public bool IsUserEmployee => _authService.IsEmployee;
         public bool IsUserClient => _authService.IsClient;
-        // Change the LoggedInUsername property
         public string LoggedInUsername => IsUserLoggedIn ?
             $"{_authService.CurrentUser?.FirstName} {_authService.CurrentUser?.LastName}"
             : "Vizitator";
@@ -114,12 +144,18 @@ namespace restaurant_app.ViewModels
         public ICommand LoginCommand { get; }
         public ICommand LogoutCommand { get; }
         public ICommand RegisterCommand { get; }
+        public ICommand BackToMenuCommand { get; }
+        public ICommand ViewMenuCommand { get; }
+        public ICommand ViewMyOrdersCommand { get; }
+        public ICommand AdminDashboardCommand { get; }
 
         public MainMenuViewModel(MenuService menuService, AuthService authService, NavigationService navigationService)
         {
             _menuService = menuService ?? throw new ArgumentNullException(nameof(menuService));
             _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+            _navigationService = navigationService;
             _isUserLoggedIn = _authService.IsLoggedIn;
+            _categorizedProducts = new Dictionary<string, List<restaurant_app.Models.ProductWithCategoryAndAllergens>>();
 
             // Initialize commands
             SearchByKeywordCommand = new RelayCommand(async _ => await ExecuteSearchByKeywordAsync(), _ => !string.IsNullOrWhiteSpace(SearchKeyword));
@@ -131,6 +167,85 @@ namespace restaurant_app.ViewModels
             LoginCommand = new RelayCommand(_ => ExecuteLogin());
             LogoutCommand = new RelayCommand(_ => ExecuteLogout(), _ => IsUserLoggedIn);
             RegisterCommand = new RelayCommand(_ => ExecuteRegister());
+            BackToMenuCommand = new RelayCommand(_ => IsSearchResultsVisible = false);
+            ViewMenuCommand = new RelayCommand(_ => ExecuteViewMenu());
+            ViewMyOrdersCommand = new RelayCommand(_ => ExecuteViewMyOrders(), _ => IsUserClient);
+            AdminDashboardCommand = new RelayCommand(_ => ExecuteAdminDashboard(), _ => IsUserEmployee);
+        }
+
+
+        private void ExecuteViewMenu()
+        {
+            IsSearchResultsVisible = false;
+            StatusMessage = "Vizualizare meniu restaurant";
+        }
+
+        private void ExecuteViewMyOrders()
+        {
+            if (!IsUserClient)
+            {
+                MessageBox.Show("Trebuie să vă autentificați pentru această acțiune.", "Autentificare necesară");
+                ExecuteLogin();
+                return;
+            }
+
+            // Open orders page
+            var ordersPage = new OrderListPage();
+            var window = new Window
+            {
+                Content = ordersPage,
+                Title = "Comenzile Mele",
+                Width = 800,
+                Height = 600
+            };
+            window.Show();
+        }
+
+        private void ExecuteAdminDashboard()
+        {
+            if (!IsUserEmployee)
+            {
+                MessageBox.Show("Acces restricționat doar pentru angajați.", "Acces restricționat");
+                return;
+            }
+
+            // Open admin dashboard
+            var adminPage = new AdminDashboardPage();
+            var window = new Window
+            {
+                Content = adminPage,
+                Title = "Administrare Restaurant",
+                Width = 1000,
+                Height = 700
+            };
+            window.Show();
+        }
+
+        private void FilterProductsByCategory(Category category)
+        {
+            if (category == null)
+                return;
+
+            try
+            {
+                IsLoading = true;
+                var filteredProducts = Products.Where(p => p.CategoryID == category.CategoryId).ToList();
+                SearchResults.Clear();
+                foreach (var product in filteredProducts)
+                {
+                    SearchResults.Add(product);
+                }
+                IsSearchResultsVisible = true;
+                StatusMessage = $"Produse din categoria: {category.Name}";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Eroare la filtrare: {ex.Message}";
+            }
+            finally
+            {
+                IsLoading = false;
+            }
         }
 
         public async Task LoadDataAsync()
@@ -161,6 +276,11 @@ namespace restaurant_app.ViewModels
                     Categories.Add(category);
                 }
 
+                // Group products by category
+                CategorizedProducts = Products
+                    .GroupBy(p => p.CategoryName)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
                 StatusMessage = "Datele au fost încărcate cu succes.";
             }
             catch (Exception ex)
@@ -187,6 +307,7 @@ namespace restaurant_app.ViewModels
                 }
 
                 IsSearchResultsVisible = true;
+                StatusMessage = $"Căutare după: {SearchKeyword}";
             }
             catch (Exception ex)
             {
@@ -212,6 +333,7 @@ namespace restaurant_app.ViewModels
                 }
 
                 IsSearchResultsVisible = true;
+                StatusMessage = $"Căutare după alergen: {SearchAllergen} ({(ExcludeAllergen ? "exclude" : "include")})";
             }
             catch (Exception ex)
             {
@@ -244,6 +366,8 @@ namespace restaurant_app.ViewModels
                 return;
             }
 
+            // Increment cart counter
+            CartItemCount++;
             StatusMessage = "Produs adăugat în coș";
         }
 
@@ -259,7 +383,7 @@ namespace restaurant_app.ViewModels
             var window = new Window
             {
                 Content = orderPage,
-                Title = "Order Page",
+                Title = "Coșul meu",
                 Width = 800,
                 Height = 600
             };
@@ -288,6 +412,9 @@ namespace restaurant_app.ViewModels
 
             // Update IsUserLoggedIn property after logout
             IsUserLoggedIn = _authService.IsLoggedIn;
+
+            // Reset cart when logging out
+            CartItemCount = 0;
 
             // Update other UI properties
             OnPropertyChanged(nameof(IsUserClient));

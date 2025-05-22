@@ -18,7 +18,7 @@ namespace restaurant_app.Views
                 // Inițializăm serviciile
                 var serviceLocator = ServiceLocator.Instance;
 
-                // Creăm ViewModel-ul
+                // Creăm ViewModel-ul utilizând serviciile din ServiceLocator
                 _viewModel = new MainMenuViewModel(
                     serviceLocator.MenuService,
                     serviceLocator.AuthService,
@@ -32,8 +32,8 @@ namespace restaurant_app.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Eroare: {ex.Message}", "Eroare",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Eroare la inițializarea aplicației: {ex.Message}",
+                    "Eroare", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -47,16 +47,8 @@ namespace restaurant_app.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Eroare: {ex.Message}", "Eroare",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private void BackToMenu_Click(object sender, RoutedEventArgs e)
-        {
-            if (_viewModel != null)
-            {
-                _viewModel.IsSearchResultsVisible = false;
+                MessageBox.Show($"Eroare la încărcarea datelor: {ex.Message}",
+                    "Eroare", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }
