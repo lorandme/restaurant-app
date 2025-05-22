@@ -98,7 +98,11 @@ namespace restaurant_app.ViewModels
         }
         public bool IsUserEmployee => _authService.IsEmployee;
         public bool IsUserClient => _authService.IsClient;
-        public string LoggedInUsername => IsUserLoggedIn ? _authService.CurrentUser?.Username : "Vizitator";
+        // Change the LoggedInUsername property
+        public string LoggedInUsername => IsUserLoggedIn ?
+            $"{_authService.CurrentUser?.FirstName} {_authService.CurrentUser?.LastName}"
+            : "Vizitator";
+
 
         // Commands
         public ICommand SearchByKeywordCommand { get; }

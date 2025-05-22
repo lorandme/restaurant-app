@@ -24,12 +24,12 @@ namespace restaurant_app.Services
             _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         }
 
-        public async Task<bool> LoginAsync(string username, string password)
+        public async Task<bool> LoginAsync(string email, string password)
         {
             try
             {
                 var user = await _dbContext.Users
-                    .FirstOrDefaultAsync(u => u.Username == username);
+                    .FirstOrDefaultAsync(u => u.Email == email);
 
                 if (user == null)
                     return false;
@@ -43,35 +43,60 @@ namespace restaurant_app.Services
 
                 return false;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"Eroare la autentificare: {ex.Message}");
                 return false;
             }
         }
 
-        public async Task<(bool Success, string Message)> RegisterAsync(
-    string username, string password)
+        public async Task<(bool Success, string Message)> RegisterClientAsync(
+    string firstName, string lastName, string email,
+    string phoneNumber, string deliveryAddress, string password)
         {
             try
             {
-                // Verificăm dacă există deja un utilizator cu acest username
+                // Verificăm dacă există deja un utilizator cu acest email
                 var existingUser = await _dbContext.Users
-                    .FirstOrDefaultAsync(u => u.Username == username);
+                    .FirstOrDefaultAsync(u => u.Email == email);
 
                 if (existingUser != null)
-                    return (false, "Există deja un cont cu acest nume de utilizator.");
+                    return (false, "Există deja un cont cu acest email.");
+
+                // Validări simple
+                if (string.IsNullOrWhiteSpace(firstName))
+                    return (false, "Numele este obligatoriu.");
+
+                if (string.IsNullOrWhiteSpace(lastName))
+                    return (false, "Prenumele este obligatoriu.");
+
+                if (string.IsNullOrWhiteSpace(email))
+                    return (false, "Email-ul este obligatoriu.");
+
+                if (string.IsNullOrWhiteSpace(phoneNumber))
+                    return (false, "Numărul de telefon este obligatoriu.");
+
+                if (string.IsNullOrWhiteSpace(deliveryAddress))
+                    return (false, "Adresa de livrare este obligatorie.");
+
+                if (password.Length < 6)
+                    return (false, "Parola trebuie să aibă cel puțin 6 caractere.");
+
+                // Verificăm formatul email-ului
+                if (!IsValidEmail(email))
+                    return (false, "Formatul adresei de email nu este valid.");
 
                 // Creăm un nou utilizator
                 var newUser = new User
                 {
-                    Username = username,
+                    FirstName = firstName,
+                    LastName = lastName,
+                    Email = email,
+                    PhoneNumber = phoneNumber,
+                    DeliveryAddress = deliveryAddress,
                     PasswordHash = HashPassword(password),
-                    UserType = "Client", // Utilizatorii noi sunt întotdeauna clienți
-                    Email = null, // Null instead of empty string
-                    FirstName = null,
-                    LastName = null,
-                    PhoneNumber = null,
-                    DeliveryAddress = null
+                    UserType = "Client" // Utilizatorii noi sunt întotdeauna clienți
+                                        // Removed Username = email line
                 };
 
                 _dbContext.Users.Add(newUser);
@@ -84,9 +109,11 @@ namespace restaurant_app.Services
             }
             catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"Eroare la înregistrare: {ex.Message}");
                 return (false, $"Eroare la înregistrare: {ex.Message}");
             }
         }
+
 
         public void Logout()
         {
@@ -106,6 +133,19 @@ namespace restaurant_app.Services
         {
             var passwordHash = HashPassword(password);
             return passwordHash == storedHash;
+        }
+
+        private bool IsValidEmail(string email)
+        {
+            try
+            {
+                var addr = new System.Net.Mail.MailAddress(email);
+                return addr.Address == email;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

@@ -13,16 +13,16 @@ namespace restaurant_app.ViewModels
     {
         private readonly AuthService _authService;
 
-        private string _username = string.Empty;
+        private string _email = string.Empty;
         private string _statusMessage = string.Empty;
         private bool _isProcessing;
 
         public Action LoginSuccessfulCallback { get; set; }
 
-        public string Username
+        public string Email
         {
-            get => _username;
-            set => SetProperty(ref _username, value);
+            get => _email;
+            set => SetProperty(ref _email, value);
         }
 
         public string StatusMessage
@@ -41,7 +41,6 @@ namespace restaurant_app.ViewModels
         public ICommand NavigateToRegisterCommand { get; }
         public ICommand NavigateBackCommand { get; }
 
-        // Constructor simplu
         public LoginViewModel()
         {
             _authService = ServiceLocator.Instance.AuthService;
@@ -49,13 +48,21 @@ namespace restaurant_app.ViewModels
             LoginCommand = new RelayCommand(async param => await ExecuteLoginAsync(param as PasswordBox), CanLogin);
             NavigateToRegisterCommand = new RelayCommand(_ => ExecuteNavigateToRegister());
             NavigateBackCommand = new RelayCommand(_ => ExecuteNavigateBack());
+
+            // Make sure CanLogin is re-evaluated when properties change
+            PropertyChanged += (sender, args) => {
+                if (args.PropertyName == nameof(Email) || args.PropertyName == nameof(IsProcessing))
+                {
+                    (LoginCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                }
+            };
         }
 
         private bool CanLogin(object parameter)
         {
             var passwordBox = parameter as PasswordBox;
             return !IsProcessing &&
-                   !string.IsNullOrWhiteSpace(Username) &&
+                   !string.IsNullOrWhiteSpace(Email) &&
                    passwordBox != null &&
                    !string.IsNullOrWhiteSpace(passwordBox.Password);
         }
@@ -70,10 +77,14 @@ namespace restaurant_app.ViewModels
                 IsProcessing = true;
                 StatusMessage = string.Empty;
 
-                bool result = await _authService.LoginAsync(Username, passwordBox.Password);
+                System.Diagnostics.Debug.WriteLine($"Încercare autentificare pentru: {Email}");
+
+                bool result = await _authService.LoginAsync(Email, passwordBox.Password);
 
                 if (result)
                 {
+                    System.Diagnostics.Debug.WriteLine("Autentificare reușită!");
+
                     // Executăm callback-ul dacă există
                     LoginSuccessfulCallback?.Invoke();
 
@@ -82,16 +93,14 @@ namespace restaurant_app.ViewModels
                 }
                 else
                 {
-                    StatusMessage = "Nume utilizator sau parolă incorecte.";
-                    // Asigurăm actualizarea UI
-                    OnPropertyChanged(nameof(StatusMessage));
+                    StatusMessage = "Email sau parolă incorecte.";
+                    System.Diagnostics.Debug.WriteLine("Autentificare eșuată: Email sau parolă incorecte.");
                 }
             }
             catch (Exception ex)
             {
                 StatusMessage = $"Eroare: {ex.Message}";
-                // Asigurăm actualizarea UI
-                OnPropertyChanged(nameof(StatusMessage));
+                System.Diagnostics.Debug.WriteLine($"Excepție la autentificare: {ex.Message}");
             }
             finally
             {

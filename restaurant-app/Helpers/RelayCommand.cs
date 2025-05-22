@@ -34,5 +34,6 @@ namespace restaurant_app.Helpers
         {
             CommandManager.InvalidateRequerySuggested();
         }
+
     }
 }

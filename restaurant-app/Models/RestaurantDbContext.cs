@@ -210,12 +210,11 @@ public partial class RestaurantDbContext : DbContext
                 .HasConstraintName("FK_ProductImages_Products");
         });
 
+        // In the OnModelCreating method, modify the User entity configuration
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasKey(e => e.UserId).HasName("PK__Users__1788CCAC1D082027");
 
-            // Keep the index but make it optional - change to a non-unique index if needed
-            // or keep it but allow null values
             entity.HasIndex(e => e.Email, "UQ__Users__A9D10534118A053A");
 
             entity.Property(e => e.UserId).HasColumnName("UserID");
@@ -223,13 +222,13 @@ public partial class RestaurantDbContext : DbContext
             entity.Property(e => e.Email).HasMaxLength(100);
             entity.Property(e => e.FirstName).HasMaxLength(50);
             entity.Property(e => e.LastName).HasMaxLength(50);
-            entity.Property(e => e.Username).HasMaxLength(50).IsRequired(); // Make Username required
             entity.Property(e => e.PasswordHash).HasMaxLength(255);
             entity.Property(e => e.PhoneNumber).HasMaxLength(20);
             entity.Property(e => e.UserType)
                 .HasMaxLength(20)
                 .HasDefaultValue("Client");
         });
+
 
 
 

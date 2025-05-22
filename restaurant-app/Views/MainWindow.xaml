@@ -40,8 +40,7 @@
                     <Button Content="Autentificare" 
                             Command="{Binding LoginCommand}"
                             Margin="5"
-                            Padding="10,5" 
-                            Visibility="{Binding IsUserLoggedIn, Converter={StaticResource BoolToVis}, ConverterParameter=False}"/>
+                            Padding="10,5"/>
 
 
                     <Button Content="Deconectare" 

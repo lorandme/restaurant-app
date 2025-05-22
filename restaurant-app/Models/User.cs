@@ -7,7 +7,7 @@ public partial class User
 {
     public int UserId { get; set; }
 
-    public string Username { get; set; } = null!; // Required Username field
+    // Removed Username property
 
     public string? FirstName { get; set; } // Nullable
 
